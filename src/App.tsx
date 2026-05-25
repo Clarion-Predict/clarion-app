@@ -1,26 +1,1201 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, TrendingUp, Users, MessageCircle, Bookmark, Share2, ChevronRight, ArrowLeft, Sparkles, Heart, Briefcase, Vote, Tv, ShoppingBag, Activity, X, Check, Mail, Shield, CreditCard, AlertCircle, LogOut, Plus, Bell, TrendingDown, Zap, Globe, Copy, Award, Trophy, Star, Flame, Settings, Database, FileText, Terminal, Play, Pause, RefreshCw, FlaskConical, BookOpen, Layers, ArrowRight, DollarSign, Edit3, Gift, UserCircle, BarChart2, Eye, EyeOff, AtSign, Lock, Unlock, ChevronUp, ChevronDown, Medal } from 'lucide-react';
 
-function App() {
+const Beaker = FlaskConical;
+const HandHeart = Heart;
+const BadgeCheck = Award;
+
+// ========== DATA ==========
+const categories = [
+  { id: 'all', name: 'All', icon: Sparkles },
+  { id: 'bachelor', name: 'Bachelor', icon: Heart },
+  { id: 'bravo', name: 'Bravo', icon: Star },
+  { id: 'survivor', name: 'Survivor', icon: Flame },
+  { id: 'netflix', name: 'Netflix', icon: Tv },
+  { id: 'amazon', name: 'Amazon', icon: Globe },
+];
+
+const causesByCategory = {
+  bachelor: { name: "Mental health initiatives", org: "Policy Center for Maternal Mental Health, NAMI" },
+  bravo: { name: "Women's health research", org: "Society for Women's Health Research" },
+  survivor: { name: "Economic empowerment", org: "Ellevate Foundation, Kiva" },
+  netflix: { name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
+  amazon: { name: "Women's health research", org: "Society for Women's Health Research" },
+};
+
+const causeOptions = [
+  { id: 'womens_health', name: "Women's health research", org: "Society for Women's Health Research" },
+  { id: 'mental_health', name: "Mental health initiatives", org: "Policy Center for Maternal Mental Health, NAMI" },
+  { id: 'economic', name: "Economic empowerment", org: "Ellevate Foundation, Kiva" },
+  { id: 'reproductive', name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
+];
+
+const initialMarkets = [
+  { id: 1, category: 'bachelor', question: "Will Jonesy get a rose on this week's episode of The Bachelor?", context: "Jonesy has had a rocky two weeks but got a one-on-one last episode. Producers seem invested.", yes: 61, no: 39, volume: '$8.2k', traders: 312, comments: 87, trending: true, ends: 'May 27, 2026', status: 'open' },
+  { id: 2, category: 'bachelor', question: "Will the Bachelor finale end with an engagement?", context: "Season 31 finale airs June 10. Two contestants remain — odds are heavily debated in Bachelor Nation.", yes: 74, no: 26, volume: '$14.1k', traders: 509, comments: 203, trending: true, ends: 'Jun 10, 2026', status: 'open' },
+  { id: 3, category: 'bachelor', question: "Will there be a two-on-one date in the next episode?", context: "Previews show a dramatic beach confrontation. Classic two-on-one setup.", yes: 82, no: 18, volume: '$3.4k', traders: 178, comments: 44, ends: 'May 27, 2026', status: 'open' },
+  { id: 4, category: 'bravo', question: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", context: "Bethenny has been vocal about a potential return. Producers have not confirmed either way.", yes: 38, no: 62, volume: '$11.7k', traders: 421, comments: 156, trending: true, ends: 'Jun 15, 2026', status: 'open' },
+  { id: 5, category: 'bravo', question: "Will the Vanderpump Rules cast return for another season?", context: "Viewership rebounded after Scandoval but Bravo has been quiet on renewal.", yes: 55, no: 45, volume: '$9.3k', traders: 388, comments: 112, ends: 'Jul 1, 2026', status: 'open' },
+  { id: 6, category: 'bravo', question: "Will there be a physical altercation on this season of RHONJ?", context: "Tensions between two main cast members have been building for three episodes.", yes: 79, no: 21, volume: '$6.8k', traders: 267, comments: 93, ends: 'Jun 3, 2026', status: 'open' },
+  { id: 7, category: 'survivor', question: "Will the current immunity idol holder make it to the final five?", context: "She has the only known idol in the game and a tight alliance of three.", yes: 58, no: 42, volume: '$7.1k', traders: 291, comments: 78, trending: true, ends: 'Jun 4, 2026', status: 'open' },
+  { id: 8, category: 'survivor', question: "Will there be a tribe swap in the next two episodes?", context: "Swap typically happens around day 14. We are at day 13 in the game.", yes: 71, no: 29, volume: '$4.2k', traders: 198, comments: 51, ends: 'Jun 4, 2026', status: 'open' },
+  { id: 9, category: 'survivor', question: "Will this season's winner be a woman?", context: "Women have won 21 of 46 seasons. The current edit favors two female contenders.", yes: 63, no: 37, volume: '$12.4k', traders: 476, comments: 134, ends: 'Jun 18, 2026', status: 'open' },
+  { id: 10, category: 'netflix', question: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", context: "Seasons 1 and 4 each produced one lasting marriage. Season 8 couples seem stronger.", yes: 34, no: 66, volume: '$8.9k', traders: 334, comments: 97, ends: 'Dec 31, 2027', status: 'open' },
+  { id: 11, category: 'netflix', question: "Will Too Hot To Handle Season 6 be renewed before the finale airs?", context: "Netflix has pre-announced renewals for this franchise before. Viewership numbers are strong.", yes: 47, no: 53, volume: '$5.6k', traders: 221, comments: 63, ends: 'Jun 20, 2026', status: 'open' },
+  { id: 12, category: 'amazon', question: "Will the next eliminated contestant on The Traitors US win the fan vote to return?", context: "Amazon Prime added a fan-vote return twist this season. The last two eliminated are fan favorites.", yes: 66, no: 34, volume: '$6.3k', traders: 248, comments: 71, ends: 'Jun 1, 2026', status: 'open' },
+];
+
+// ========== MOCK COMMUNITY USERS ==========
+const initialCommunityUsers = [
+  { id: 'usr_001', username: 'leilac', name: 'Leila Cho', accuracy: 74, totalTrades: 47, impactScore: 312, leaderboardRank: 1, following: true, cause: 'womens_health', causePrivate: false, positions: [
+    { marketId: 2, market: "Will the Bachelor finale end with an engagement?", category: 'bachelor', side: 'yes', amount: 25, ts: '2h ago', resolved: false },
+    { marketId: 7, market: "Will the current immunity idol holder make it to the final five?", category: 'survivor', side: 'yes', amount: 50, ts: '1d ago', resolved: false },
+  ]},
+  { id: 'usr_002', username: 'marcuschen', name: 'Marcus Chen', accuracy: 61, totalTrades: 31, impactScore: 187, leaderboardRank: 2, following: true, cause: 'economic', causePrivate: false, positions: [
+    { marketId: 5, market: "Will the Vanderpump Rules cast return for another season?", category: 'bravo', side: 'no', amount: 30, ts: '3h ago', resolved: false },
+    { marketId: 10, market: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", category: 'netflix', side: 'no', amount: 20, ts: '5h ago', resolved: false },
+  ]},
+  { id: 'usr_003', username: 'sarahkim', name: 'Sarah Kim', accuracy: 58, totalTrades: 19, impactScore: 94, leaderboardRank: 3, following: false, cause: 'mental_health', causePrivate: true, positions: [
+    { marketId: 1, market: "Will Jonesy get a rose on this week's episode of The Bachelor?", category: 'bachelor', side: 'yes', amount: 15, ts: '6h ago', resolved: false },
+  ]},
+  { id: 'usr_004', username: 'janedoe_wx', name: 'Jane Doe', accuracy: 55, totalTrades: 12, impactScore: 61, leaderboardRank: 4, following: false, cause: 'reproductive', causePrivate: false, positions: [
+    { marketId: 4, market: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", category: 'bravo', side: 'no', amount: 40, ts: '1d ago', resolved: false },
+  ]},
+  { id: 'usr_005', username: 'priyav', name: 'Priya V.', accuracy: 52, totalTrades: 8, impactScore: 44, leaderboardRank: 5, following: false, cause: 'womens_health', causePrivate: false, positions: [] },
+];
+
+const mockActivityComments = {
+  'usr_001_2': [{ id: 'c1', author: 'marcuschen', text: 'Bold call — the edit has been too obvious. They never show the winner this much.', ts: '1h ago' }],
+  'usr_002_5': [],
+};
+
+const mockUsers = [
+  { id: 'usr_demo', name: 'Demo User', email: 'demo@clarion.app', balance: 50, kyc: true, state: 'NY', positions: 0 },
+  { id: 'usr_001', name: 'Leila Cho', email: 'leila@example.com', balance: 1247.50, kyc: true, state: 'CA', positions: 12 },
+  { id: 'usr_002', name: 'Marcus Chen', email: 'marcus@example.com', balance: 432.20, kyc: true, state: 'TX', positions: 8 },
+  { id: 'usr_003', name: 'Sarah Kim', email: 'sarahk@example.com', balance: 89.75, kyc: false, state: 'FL', positions: 0, flag: 'kyc_pending' },
+  { id: 'usr_004', name: 'Jane Doe', email: 'jane@example.com', balance: 5000, kyc: true, state: 'WA', positions: 3, flag: 'high_deposit' },
+];
+
+const initialLedger = [
+  { id: 'le_001', userId: 'usr_001', type: 'deposit', amount: 500, ref: 'stripe_ch_3NxY2kL', ts: '2026-04-18 14:32:01', desc: 'Card deposit, Visa ending 4242' },
+  { id: 'le_002', userId: 'usr_001', type: 'trade', amount: -50, ref: 'trd_8821', ts: '2026-04-18 14:45:23', desc: 'YES at 62 cents, Wicked' },
+  { id: 'le_003', userId: 'usr_001', type: 'fee', amount: -1, ref: 'trd_8821', ts: '2026-04-18 14:45:23', desc: 'Trading fee 2 percent' },
+  { id: 'le_004', userId: 'usr_001', type: 'pledge', amount: -0.50, ref: 'trd_8821', ts: '2026-04-18 14:45:23', desc: '1 percent pledge to mental health initiatives' },
+  { id: 'le_005', userId: 'usr_002', type: 'deposit', amount: 200, ref: 'stripe_ch_3NxY9qR', ts: '2026-04-18 09:12:44', desc: 'ACH deposit via Plaid' },
+  { id: 'le_006', userId: 'usr_002', type: 'trade', amount: -75, ref: 'trd_8804', ts: '2026-04-18 11:03:12', desc: 'NO at 77 cents, PFML Act' },
+];
+
+const initialWaitlist = [
+  { position: 1, email: 'early1@example.com', joined: '3d ago' },
+  { position: 2, email: 'early2@example.com', joined: '3d ago' },
+];
+
+const automationTemplates = [
+  { source: 'event-feed', category: 'bachelor', question: "Will the next rose ceremony have a surprise self-elimination?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'event-feed', category: 'bravo', question: "Will this season of RHONY end with a cast shakeup?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'survivor', question: "Will there be a hidden immunity idol played at the next tribal council?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'netflix', question: "Will Love Is Blind drop a surprise reunion episode this season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'scheduled-event', category: 'bachelor', question: "Will the Bachelor hometown dates include a dramatic family confrontation?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'community', category: 'bravo', question: "Will a new cast member be added to Vanderpump Rules mid-season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'amazon', question: "Will The Traitors US have a double elimination this week?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'community', category: 'bachelor', question: "Will a specific contestant win based on spoiler sites?", passes: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Based on unverified spoiler content. No clean public resolution source." },
+  { source: 'community', category: 'bravo', question: "Will a cast member announce a personal health issue this season?", passes: { publicResolution: false, noPerverseIncentive: false, dignity: false, valuesAligned: false }, rejectReason: "Privacy concern. Markets on personal health situations are not permitted." },
+];
+
+const initialSubmissions = [
+  { id: 'sub_001', submitter: 'BachelorNation_fan', source: 'community', time: '2h ago', category: 'bachelor', question: "Will the Bachelor skip the fantasy suites this season?", context: "Lead has made comments in interviews suggesting he wants a different path.", endsHint: "Jun 3, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
+  { id: 'sub_002', submitter: 'BravoSuperFan', source: 'community', time: '4h ago', category: 'bravo', question: "Will the RHOSLC cast film a trip to Mexico this season?", context: "Multiple cast members hinted at an international trip on their social media.", endsHint: "Jul 1, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
+  { id: 'sub_003', submitter: 'Anonymous', source: 'community', time: '6h ago', category: 'bachelor', question: "Will a specific contestant win based on spoiler sites?", context: "Several spoiler accounts are reporting the same winner.", endsHint: "Jun 10, 2026", autoChecks: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Based on unverified spoiler content. No clean public resolution source.", status: 'pending' },
+];
+
+const generateSubmission = () => {
+  const tmpl = automationTemplates[Math.floor(Math.random() * automationTemplates.length)];
+  const sourceLabel = tmpl.source === 'community' ? 'Community member' : tmpl.source === 'llm-drafted' ? 'Clarion AI drafted' : tmpl.source === 'event-feed' ? 'Event feed auto' : 'Scheduled event auto';
+  return {
+    id: 'sub_auto_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    submitter: sourceLabel, source: tmpl.source, time: 'just now',
+    category: tmpl.category, question: tmpl.question, context: 'Auto-generated for review.',
+    endsHint: 'Dec 31, 2026', autoChecks: tmpl.passes, rejectReason: tmpl.rejectReason, status: 'pending',
+  };
+};
+
+const communityImpact = {
+  totalGiven: 482193, contributors: 12847,
+  byArea: [
+    { cause: "Women's health research", amount: 120548, pct: 25 },
+    { cause: "Mental health initiatives", amount: 120548, pct: 25 },
+    { cause: "Economic empowerment", amount: 120548, pct: 25 },
+    { cause: "Reproductive rights & healthcare access", amount: 120548, pct: 25 },
+  ],
+};
+
+// ========== LOGO ==========
+const Logo = ({ size = 32 }) => (
+  <div className="relative" style={{ width: size, height: size }}>
+    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-700" />
+    <div className="absolute inset-0 flex items-center justify-center">
+      <svg viewBox="-14 -14 28 28" fill="none" width={size * 0.6} height={size * 0.6}>
+        <path d="M0,-11 L11,0 L0,11 L-11,0 Z" fill="none" stroke="#fde68a" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M5,-5 L-1.5,0 L5,5" fill="none" stroke="#fde68a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  </div>
+);
+
+// ========== AVATAR ==========
+const Avatar = ({ username, size = 36, className = '' }) => {
+  const colors = ['bg-amber-200', 'bg-rose-200', 'bg-emerald-200', 'bg-sky-200', 'bg-violet-200', 'bg-orange-200'];
+  const colorIdx = username ? username.charCodeAt(0) % colors.length : 0;
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+    <div className={`${colors[colorIdx]} rounded-full flex items-center justify-center font-medium text-stone-800 flex-shrink-0 ${className}`} style={{ width: size, height: size, fontSize: size * 0.38 }}>
+      {username ? username[0].toUpperCase() : '?'}
+    </div>
+  );
+};
+
+// ========== WAITLIST MODAL ==========
+const WaitlistModal = ({ onClose, waitlist, setWaitlist }) => {
+  const [email, setEmail] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [position, setPosition] = useState(null);
+  const handleSubmit = () => {
+    if (!email.includes('@')) return;
+    const newPosition = waitlist.length + 1;
+    setWaitlist([...waitlist, { position: newPosition, email, joined: 'just now' }]);
+    setPosition(newPosition);
+    setSubmitted(true);
+  };
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-6 right-6 text-stone-400"><X className="w-5 h-5" /></button>
+        {!submitted ? (
+          <div>
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center mb-5"><Sparkles className="w-7 h-7 text-stone-800" /></div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-2">Real-money early access</h2>
+            <p className="text-sm text-stone-600 leading-relaxed mb-5">Clarion is in practice mode while we complete CFTC registration. Join the waitlist.</p>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none mb-3" />
+            <button onClick={handleSubmit} className="w-full py-3 rounded-2xl bg-stone-900 text-white text-sm font-medium">Join waitlist</button>
+          </div>
+        ) : (
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8 text-emerald-600" /></div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-2">You are on the list</h2>
+            <div className="inline-block px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-sm mb-4">
+              <span className="text-amber-900">Position </span><span className="font-serif text-amber-900">#{position}</span>
+            </div>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-full bg-stone-900 text-white text-sm">Back to Clarion</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ========== USER PROFILE VIEW ==========
+const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, markets, onViewMarket }) => {
+  const [tab, setTab] = useState('bets');
+  const causeInfo = causeOptions.find(c => c.id === profileUser.cause);
+  return (
+    <div className="min-h-screen bg-amber-50/40 pb-20">
+      <div className="max-w-2xl mx-auto p-4 md:p-6">
+        <button onClick={onClose} className="flex items-center gap-2 text-stone-600 mb-4 text-sm"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <div className="bg-white rounded-3xl border border-stone-100 overflow-hidden mb-4">
+          <div className="h-16 bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100" />
+          <div className="px-5 pb-5">
+            <div className="flex items-end justify-between -mt-8 mb-4">
+              <Avatar username={profileUser.username} size={56} className="border-2 border-white" />
+              <button onClick={() => onFollowToggle(profileUser.id)} className={`px-4 py-1.5 rounded-full text-sm font-medium ${profileUser.following ? 'bg-stone-100 text-stone-700' : 'bg-stone-900 text-white'}`}>
+                {profileUser.following ? 'Following' : 'Follow'}
+              </button>
+            </div>
+            <div className="mb-1">
+              <span className="text-lg font-serif text-stone-900">{profileUser.name}</span>
+            </div>
+            <div className="flex items-center gap-1 text-sm text-stone-500 mb-4">
+              <AtSign className="w-3.5 h-3.5" />{profileUser.username}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Accuracy', value: profileUser.accuracy + '%', highlight: profileUser.accuracy >= 65 },
+                { label: 'Total trades', value: profileUser.totalTrades },
+                { label: 'Impact score', value: profileUser.impactScore },
+              ].map((s, i) => (
+                <div key={i} className={`p-3 rounded-2xl text-center ${s.highlight ? 'bg-emerald-50 border border-emerald-100' : 'bg-stone-50'}`}>
+                  <div className={`text-xl font-serif ${s.highlight ? 'text-emerald-700' : 'text-stone-900'}`}>{s.value}</div>
+                  <div className="text-xs text-stone-500 mt-0.5">{s.label}</div>
+                </div>
+              ))}
+            </div>
+            {!profileUser.causePrivate && causeInfo && (
+              <div className="mt-4 flex items-center gap-2 text-xs text-stone-500">
+                <HandHeart className="w-3.5 h-3.5 text-amber-600" />
+                <span>Supports <span className="text-stone-700 font-medium">{causeInfo.name}</span></span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          {['bets', 'stats'].map(t => (
+            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-full text-sm capitalize ${tab === t ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{t}</button>
+          ))}
+        </div>
+
+        {tab === 'bets' && (
+          <div className="space-y-3">
+            {profileUser.positions.length === 0 && <div className="text-center py-10 text-stone-400 text-sm">No bets yet.</div>}
+            {profileUser.positions.map((p, i) => {
+              const market = markets.find(m => m.id === p.marketId);
+              return (
+                <div key={i} className="bg-white rounded-2xl border border-stone-100 p-4">
+                  <div className="flex items-center gap-2 mb-2 text-xs text-stone-500">
+                    <span className="capitalize">{p.category}</span>
+                    <span>·</span><span>{p.ts}</span>
+                  </div>
+                  <p className="text-sm font-serif text-stone-900 mb-2 leading-snug">{p.market}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                    <span className="text-xs text-stone-500">${p.amount} wagered</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === 'stats' && (
+          <div className="bg-white rounded-2xl border border-stone-100 p-5">
+            <h3 className="text-sm font-medium text-stone-900 mb-4">Performance breakdown</h3>
+            <div className="space-y-3">
+              {[
+                { label: 'Leaderboard rank', value: '#' + profileUser.leaderboardRank },
+                { label: 'Accuracy rate', value: profileUser.accuracy + '%' },
+                { label: 'Total trades placed', value: profileUser.totalTrades },
+                { label: 'Impact score', value: profileUser.impactScore },
+              ].map((row, i) => (
+                <div key={i} className="flex justify-between items-center py-2 border-b border-stone-50 last:border-0">
+                  <span className="text-sm text-stone-500">{row.label}</span>
+                  <span className="text-sm font-medium text-stone-900">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ========== ACTIVITY FEED TAB ==========
+const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfile, onViewMarket }) => {
+  const [comments, setComments] = useState(mockActivityComments);
+  const [commentText, setCommentText] = useState({});
+
+  const followed = communityUsers.filter(u => u.following);
+  const feedItems = followed.flatMap(u =>
+    u.positions.map(p => ({ ...p, user: u, key: u.id + '_' + p.marketId }))
+  ).sort((a, b) => (a.ts > b.ts ? -1 : 1));
+
+  const submitComment = (key) => {
+    const text = (commentText[key] || '').trim();
+    if (!text) return;
+    const newComment = { id: 'c' + Date.now(), author: 'demo', text, ts: 'just now' };
+    setComments(prev => ({ ...prev, [key]: [...(prev[key] || []), newComment] }));
+    setCommentText(prev => ({ ...prev, [key]: '' }));
+  };
+
+  if (followed.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <Users className="w-10 h-10 text-stone-200 mx-auto mb-3" />
+        <h3 className="text-lg font-serif text-stone-900 mb-2">No one followed yet</h3>
+        <p className="text-sm text-stone-500 mb-5">Follow other traders to see their activity here.</p>
+        <button onClick={() => onViewProfile(communityUsers[0])} className="px-5 py-2 rounded-full bg-stone-900 text-white text-sm">Find traders</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {feedItems.map(item => {
+        const itemComments = comments[item.key] || [];
+        const causeInfo = !item.user.causePrivate ? causeOptions.find(c => c.id === item.user.cause) : null;
+        return (
+          <div key={item.key} className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <button onClick={() => onViewProfile(item.user)}>
+                  <Avatar username={item.user.username} size={36} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <button onClick={() => onViewProfile(item.user)} className="font-medium text-stone-900 text-sm hover:underline">@{item.user.username}</button>
+                  <div className="text-xs text-stone-400">{item.ts}</div>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${item.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                  {item.side.toUpperCase()}
+                </span>
+              </div>
+              <p className="text-sm font-serif text-stone-900 leading-snug mb-3">{item.market}</p>
+              <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap">
+                <span>${item.amount} wagered</span>
+                {causeInfo && (
+                  <span className="flex items-center gap-1">
+                    <HandHeart className="w-3 h-3 text-amber-500" />
+                    <span>1% → {causeInfo.name}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {itemComments.length > 0 && (
+              <div className="border-t border-stone-50 px-4 py-3 space-y-3">
+                {itemComments.map(c => (
+                  <div key={c.id} className="flex gap-2">
+                    <Avatar username={c.author} size={24} />
+                    <div className="flex-1 bg-stone-50 rounded-xl px-3 py-2">
+                      <span className="text-xs font-medium text-stone-700">@{c.author} </span>
+                      <span className="text-xs text-stone-600">{c.text}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t border-stone-50 px-4 py-3 flex gap-2">
+              <Avatar username="demo" size={28} />
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  maxLength={280}
+                  value={commentText[item.key] || ''}
+                  onChange={e => setCommentText(prev => ({ ...prev, [item.key]: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && submitComment(item.key)}
+                  placeholder="Add a comment…"
+                  className="w-full bg-stone-50 rounded-xl px-3 py-2 text-xs text-stone-800 placeholder-stone-400 focus:outline-none pr-16"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {(commentText[item.key] || '').length > 0 && (
+                    <span className="text-xs text-stone-400">{280 - (commentText[item.key] || '').length}</span>
+                  )}
+                  <button onClick={() => submitComment(item.key)} className="text-stone-400 hover:text-stone-700">
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ========== LEADERBOARD TAB ==========
+const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile }) => {
+  const [sortBy, setSortBy] = useState('rank');
+  const sorted = [...communityUsers].sort((a, b) => {
+    if (sortBy === 'rank') return a.leaderboardRank - b.leaderboardRank;
+    if (sortBy === 'accuracy') return b.accuracy - a.accuracy;
+    if (sortBy === 'impact') return b.impactScore - a.impactScore;
+    return 0;
+  });
+
+  const rankIcon = (rank) => {
+    if (rank === 1) return <Trophy className="w-4 h-4 text-amber-500" />;
+    if (rank === 2) return <Medal className="w-4 h-4 text-stone-400" />;
+    if (rank === 3) return <Medal className="w-4 h-4 text-amber-700" />;
+    return <span className="text-xs font-mono text-stone-400 w-4 text-center">#{rank}</span>;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+        {[['rank', 'Overall rank'], ['accuracy', 'Accuracy'], ['impact', 'Impact score']].map(([key, label]) => (
+          <button key={key} onClick={() => setSortBy(key)} className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${sortBy === key ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{label}</button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {sorted.map((u, i) => {
+          const isTop3 = u.leaderboardRank <= 3;
+          return (
+            <div key={u.id} className={`flex items-center gap-3 p-3 md:p-4 rounded-2xl ${isTop3 ? 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100' : 'bg-white border border-stone-100'}`}>
+              <div className="w-6 flex items-center justify-center flex-shrink-0">{rankIcon(u.leaderboardRank)}</div>
+              <button onClick={() => onViewProfile(u)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
+                <Avatar username={u.username} size={36} />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-900 truncate">@{u.username}</div>
+                  <div className="text-xs text-stone-400">{u.totalTrades} trades</div>
+                </div>
+              </button>
+              <div className="text-right flex-shrink-0">
+                <div className="text-sm font-serif text-stone-900">{u.accuracy}%</div>
+                <div className="text-xs text-stone-400">accuracy</div>
+              </div>
+              <div className="text-right flex-shrink-0 hidden md:block">
+                <div className="text-sm font-serif text-amber-700">{u.impactScore}</div>
+                <div className="text-xs text-stone-400">impact</div>
+              </div>
+              <button
+                onClick={() => setCommunityUsers(prev => prev.map(cu => cu.id === u.id ? { ...cu, following: !cu.following } : cu))}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 ${u.following ? 'bg-stone-100 text-stone-600' : 'bg-stone-900 text-white'}`}
+              >
+                {u.following ? 'Following' : 'Follow'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 p-4 rounded-2xl bg-stone-50 border border-stone-100 text-center">
+        <p className="text-xs text-stone-500 leading-relaxed">Rankings update daily. Accuracy is calculated on resolved markets only. Impact score reflects total pledge contributions.</p>
+      </div>
+    </div>
+  );
+};
+
+// ========== MY PROFILE TAB ==========
+const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
+  const [selectedCause, setSelectedCause] = useState('womens_health');
+  const [causePrivate, setCausePrivate] = useState(false);
+  const [amountsPrivate, setAmountsPrivate] = useState(false);
+  const totalPledged = positions.reduce((s, p) => s + (p.invested * 0.01), 0);
+  const accuracy = positions.length > 0 ? Math.round(Math.random() * 30 + 50) : 0;
+
+  return (
+    <div className="max-w-2xl">
+      <div className="bg-white rounded-3xl border border-stone-100 overflow-hidden mb-4">
+        <div className="h-16 bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100" />
+        <div className="px-5 pb-5">
+          <div className="flex items-end justify-between -mt-8 mb-4">
+            <Avatar username="demo" size={56} className="border-2 border-white" />
+            <span className="text-xs text-stone-400 flex items-center gap-1"><Beaker className="w-3 h-3" /> Practice account</span>
+          </div>
+          <div className="text-lg font-serif text-stone-900 mb-0.5">Demo User</div>
+          <div className="flex items-center gap-1 text-sm text-stone-400 mb-4"><AtSign className="w-3.5 h-3.5" />demo</div>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Practice balance', value: '$' + balance.toFixed(2) },
+              { label: 'Open positions', value: positions.length },
+              { label: 'Total pledged', value: '$' + totalPledged.toFixed(2) },
+            ].map((s, i) => (
+              <div key={i} className="p-3 rounded-2xl bg-stone-50 text-center">
+                <div className="text-lg font-serif text-stone-900">{s.value}</div>
+                <div className="text-xs text-stone-500 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-100 p-5 mb-4">
+        <h3 className="text-sm font-medium text-stone-900 mb-1">The Clarion Pledge</h3>
+        <p className="text-xs text-stone-500 mb-4">1% of every trade you place goes to your chosen cause.</p>
+        <div className="space-y-2 mb-4">
+          {causeOptions.map(c => (
+            <button key={c.id} onClick={() => setSelectedCause(c.id)} className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50'}`}>
+              <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${selectedCause === c.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'}`}>
+                {selectedCause === c.id && <Check className="w-2.5 h-2.5 text-white m-auto" style={{marginTop:'1px'}} />}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm text-stone-900 font-medium">{c.name}</div>
+                <div className="text-xs text-stone-400 truncate">{c.org}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setCausePrivate(!causePrivate)} className="flex items-center gap-2 text-xs text-stone-500 hover:text-stone-700">
+          {causePrivate ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {causePrivate ? 'Cause is private — tap to make public' : 'Cause is public — tap to make private'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-100 p-5">
+        <h3 className="text-sm font-medium text-stone-900 mb-4">Privacy settings</h3>
+        <div className="space-y-3">
+          {[
+            { label: 'Hide bet amounts', sub: 'Others see your direction (YES/NO) but not how much you wagered', state: amountsPrivate, toggle: () => setAmountsPrivate(!amountsPrivate) },
+            { label: 'Hide cause donation', sub: 'Your chosen cause will not appear on your profile or activity feed', state: causePrivate, toggle: () => setCausePrivate(!causePrivate) },
+          ].map((s, i) => (
+            <div key={i} className="flex items-center gap-3 py-2 border-b border-stone-50 last:border-0">
+              <div className="flex-1">
+                <div className="text-sm text-stone-900">{s.label}</div>
+                <div className="text-xs text-stone-400 mt-0.5">{s.sub}</div>
+              </div>
+              <button onClick={s.toggle} className={`w-10 h-5.5 rounded-full transition-colors relative flex-shrink-0 ${s.state ? 'bg-stone-900' : 'bg-stone-200'}`} style={{height:'22px', width:'40px'}}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${s.state ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========== ADMIN PANEL (unchanged, abbreviated) ==========
+const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist }) => {
+  const [adminTab, setAdminTab] = useState('overview');
+  const [resolvingMarket, setResolvingMarket] = useState(null);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoSpeed, setAutoSpeed] = useState(8);
+  const [lastGenerated, setLastGenerated] = useState(null);
+
+  useEffect(() => {
+    if (!autoRunning) return;
+    const interval = setInterval(() => {
+      const newSub = generateSubmission();
+      setSubmissions(prev => [newSub, ...prev]);
+      setLastGenerated(newSub.id);
+      setTimeout(() => setLastGenerated(null), 1500);
+    }, autoSpeed * 1000);
+    return () => clearInterval(interval);
+  }, [autoRunning, autoSpeed, setSubmissions]);
+
+  const generateOnce = () => {
+    const newSub = generateSubmission();
+    setSubmissions(prev => [newSub, ...prev]);
+    setLastGenerated(newSub.id);
+    setTimeout(() => setLastGenerated(null), 1500);
+  };
+
+  const resolveMarket = (marketId, outcome) => {
+    setMarkets(prev => prev.map(m => m.id === marketId ? { ...m, status: 'resolved', outcome } : m));
+    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved by operator' }, ...prev]);
+    setResolvingMarket(null);
+  };
+
+  const approveSubmission = (subId) => {
+    const sub = submissions.find(s => s.id === subId);
+    if (!sub) return;
+    const newMarket = { id: Math.max.apply(null, markets.map(m => m.id)) + 1, category: sub.category, question: sub.question, context: sub.context, yes: 50, no: 50, volume: '$0', traders: 0, comments: 0, ends: sub.endsHint, status: 'open' };
+    setMarkets(prev => [...prev, newMarket]);
+    setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'approved' } : s));
+  };
+
+  const rejectSubmission = (subId) => setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'rejected' } : s));
+
+  const totalDeposits = ledger.filter(e => e.type === 'deposit').reduce((s, e) => s + e.amount, 0);
+  const totalFees = ledger.filter(e => e.type === 'fee').reduce((s, e) => s + Math.abs(e.amount), 0);
+  const totalPledge = ledger.filter(e => e.type === 'pledge').reduce((s, e) => s + Math.abs(e.amount), 0);
+  const pending = submissions.filter(s => s.status === 'pending').length;
+
+  return (
+    <div className="fixed inset-0 bg-stone-950 z-50 flex flex-col overflow-hidden">
+      <div className="bg-stone-900 border-b border-stone-700 px-4 py-3 flex items-center justify-between text-white">
+        <div className="flex items-center gap-3">
+          <div className="px-2 py-0.5 rounded bg-rose-600 text-white text-xs font-medium uppercase">Admin</div>
+          <span className="text-sm font-medium">Clarion Operator Console</span>
+        </div>
+        <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-stone-800 text-xs flex items-center gap-1.5"><X className="w-3.5 h-3.5" /> Exit</button>
+      </div>
+      <div className="flex flex-1 min-h-0">
+        <nav className="w-48 bg-stone-900 border-r border-stone-800 p-3 hidden md:block">
+          {['overview', 'users', 'markets', 'submissions', 'ledger', 'pledge', 'compliance', 'investor'].map(t => (
+            <button key={t} onClick={() => setAdminTab(t)} className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs ${adminTab === t ? 'bg-stone-800 text-white' : 'text-stone-400'}`}>
+              <span className="capitalize">{t}</span>
+              {t === 'submissions' && pending > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-stone-900 text-xs font-medium">{pending}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="flex-1 bg-stone-100 overflow-y-auto">
+          <div className="md:hidden p-2 bg-stone-900 border-b border-stone-800 flex gap-1 overflow-x-auto">
+            {['overview', 'users', 'markets', 'submissions', 'ledger', 'pledge', 'compliance', 'investor'].map(t => (
+              <button key={t} onClick={() => setAdminTab(t)} className={`px-3 py-1.5 rounded text-xs whitespace-nowrap ${adminTab === t ? 'bg-stone-800 text-white' : 'text-stone-400'}`}>{t}</button>
+            ))}
+          </div>
+          <div className="p-4 md:p-6">
+            {adminTab === 'overview' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-1">Platform overview</h1>
+                <p className="text-xs text-stone-500 mb-5">Prototype data</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-lg bg-white border border-stone-200"><div className="text-xs text-stone-500 uppercase mb-1">Users</div><div className="text-2xl font-medium text-stone-900">{users.length}</div></div>
+                  <div className="p-4 rounded-lg bg-white border border-stone-200"><div className="text-xs text-stone-500 uppercase mb-1">Deposits</div><div className="text-2xl font-medium text-stone-900">${totalDeposits.toFixed(0)}</div></div>
+                  <div className="p-4 rounded-lg bg-white border border-stone-200"><div className="text-xs text-stone-500 uppercase mb-1">Fees</div><div className="text-2xl font-medium text-emerald-700">${totalFees.toFixed(2)}</div></div>
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200"><div className="text-xs text-amber-700 uppercase mb-1">Pledged</div><div className="text-2xl font-medium text-amber-900">${totalPledge.toFixed(2)}</div></div>
+                </div>
+              </div>
+            )}
+            {adminTab === 'submissions' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-1">Market submissions</h1>
+                <p className="text-xs text-stone-500 mb-4">{pending} pending</p>
+                <div className="mb-4 p-4 rounded-lg bg-stone-900 text-stone-200">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className={`w-2 h-2 rounded-full ${autoRunning ? 'bg-emerald-400 animate-pulse' : 'bg-stone-500'}`} />
+                      <span className="text-xs font-mono">automation</span>
+                      <span className="text-xs text-stone-500">{autoRunning ? 'running, every ' + autoSpeed + 's' : 'paused'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select value={autoSpeed} onChange={e => setAutoSpeed(Number(e.target.value))} disabled={autoRunning} className="text-xs bg-stone-800 border border-stone-700 rounded px-2 py-1">
+                        <option value="4">4s</option><option value="8">8s</option><option value="15">15s</option><option value="30">30s</option>
+                      </select>
+                      <button onClick={generateOnce} className="px-3 py-1.5 rounded-md bg-stone-800 text-xs flex items-center gap-1.5"><Plus className="w-3 h-3" /> One</button>
+                      <button onClick={() => setAutoRunning(!autoRunning)} className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 font-medium ${autoRunning ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
+                        {autoRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}{autoRunning ? 'Pause' : 'Run'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {submissions.filter(s => s.status === 'pending').map(sub => {
+                    const checks = sub.autoChecks;
+                    const allPass = checks.publicResolution && checks.noPerverseIncentive && checks.dignity && checks.valuesAligned;
+                    const isNew = lastGenerated === sub.id;
+                    const sourceColor = sub.source === 'event-feed' || sub.source === 'scheduled-event' ? 'bg-blue-100 text-blue-700' : sub.source === 'llm-drafted' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700';
+                    return (
+                      <div key={sub.id} className={`bg-white rounded-lg border p-4 transition-all ${isNew ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-stone-200'}`}>
+                        <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+                          <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{sub.category}</span>
+                          {sub.source && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sourceColor}`}>{sub.source}</span>}
+                          <span className="text-stone-500">by {sub.submitter}</span>
+                          <span className="text-stone-500">{sub.time}</span>
+                          {isNew && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">NEW</span>}
+                        </div>
+                        <h3 className="text-base font-medium text-stone-900 mb-2">{sub.question}</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                          {[{ key: 'publicResolution', label: 'Public resolution' }, { key: 'noPerverseIncentive', label: 'No perverse incentive' }, { key: 'dignity', label: 'Dignity' }, { key: 'valuesAligned', label: 'Values aligned' }].map(check => (
+                            <div key={check.key} className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs ${checks[check.key] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                              {checks[check.key] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}<span className="truncate">{check.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {sub.rejectReason && <div className="p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-3"><span className="font-medium">Auto-flag:</span> {sub.rejectReason}</div>}
+                        <div className="flex gap-2">
+                          <button onClick={() => approveSubmission(sub.id)} disabled={!allPass} className={`flex-1 py-2 rounded-md text-sm font-medium ${allPass ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-400'}`}>{allPass ? 'Approve and list' : 'Cannot auto-approve'}</button>
+                          <button onClick={() => rejectSubmission(sub.id)} className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium">Reject</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {adminTab === 'users' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-4">Users</h1>
+                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50 border-b border-stone-200"><tr className="text-xs uppercase text-stone-500"><th className="text-left px-4 py-3">User</th><th className="text-left px-4 py-3">KYC</th><th className="text-right px-4 py-3">Balance</th></tr></thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {users.map(u => (
+                        <tr key={u.id}>
+                          <td className="px-4 py-3"><div className="font-medium text-stone-900">{u.name}</div><div className="text-xs text-stone-500">{u.email}</div></td>
+                          <td className="px-4 py-3">{u.kyc ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Verified</span> : <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pending</span>}</td>
+                          <td className="px-4 py-3 text-right font-mono text-stone-900">${u.balance.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {adminTab === 'markets' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-4">Markets</h1>
+                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                  {markets.map(m => (
+                    <div key={m.id} className="p-4 border-b border-stone-100 last:border-0 flex items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-stone-500 capitalize">{m.category}</span>
+                          {m.status === 'resolved' ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Resolved {m.outcome}</span> : <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Open</span>}
+                        </div>
+                        <h3 className="text-sm font-medium text-stone-900">{m.question}</h3>
+                      </div>
+                      {m.status === 'open' && <button onClick={() => setResolvingMarket(m)} className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1"><Edit3 className="w-3 h-3" /> Resolve</button>}
+                    </div>
+                  ))}
+                </div>
+                {resolvingMarket && (
+                  <div className="fixed inset-0 bg-black/50 z-10 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg max-w-md w-full p-6">
+                      <h3 className="text-lg font-medium mb-2">Resolve market</h3>
+                      <p className="text-sm text-stone-600 mb-4">{resolvingMarket.question}</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => resolveMarket(resolvingMarket.id, 'yes')} className="flex-1 py-2.5 rounded-md bg-emerald-600 text-white text-sm font-medium">Resolve YES</button>
+                        <button onClick={() => resolveMarket(resolvingMarket.id, 'no')} className="flex-1 py-2.5 rounded-md bg-rose-600 text-white text-sm font-medium">Resolve NO</button>
+                      </div>
+                      <button onClick={() => setResolvingMarket(null)} className="w-full mt-2 py-2 text-sm text-stone-500">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {adminTab === 'ledger' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-1">Ledger</h1>
+                <p className="text-xs text-stone-500 mb-4">{ledger.length} entries</p>
+                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                  <table className="w-full text-sm font-mono">
+                    <thead className="bg-stone-50 border-b border-stone-200"><tr className="text-xs uppercase text-stone-500 font-sans"><th className="text-left px-3 py-2">User</th><th className="text-left px-3 py-2">Type</th><th className="text-right px-3 py-2">Amount</th><th className="text-left px-3 py-2 hidden md:table-cell">Description</th></tr></thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {ledger.map(e => (
+                        <tr key={e.id} className="text-xs">
+                          <td className="px-3 py-2 text-stone-700">{e.userId}</td>
+                          <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-xs ${e.type === 'deposit' ? 'bg-emerald-100 text-emerald-700' : e.type === 'trade' ? 'bg-blue-100 text-blue-700' : e.type === 'pledge' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-700'}`}>{e.type}</span></td>
+                          <td className={`px-3 py-2 text-right ${e.amount >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{e.amount >= 0 ? '+' : ''}{e.amount.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-stone-600 hidden md:table-cell">{e.desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {adminTab === 'pledge' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-1">The Clarion Pledge</h1>
+                <p className="text-xs text-stone-500 mb-5">Cause allocation, four-way split</p>
+                <div className="grid md:grid-cols-2 gap-3 mb-6">
+                  <div className="p-5 rounded-lg bg-white border border-stone-200"><div className="text-xs uppercase text-stone-500 mb-2">Platform commitment</div><div className="text-3xl font-serif text-stone-900 mb-1">1%</div><div className="text-xs text-stone-600">of gross revenue, in perpetuity</div></div>
+                  <div className="p-5 rounded-lg bg-white border border-stone-200"><div className="text-xs uppercase text-stone-500 mb-2">Founder pledge</div><div className="text-3xl font-serif text-stone-900 mb-1">1%</div><div className="text-xs text-stone-600">of equity, vests on liquidity event</div></div>
+                </div>
+                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-stone-200"><h3 className="text-sm font-medium text-stone-900">Cause allocation</h3></div>
+                  <div className="divide-y divide-stone-100">
+                    {communityImpact.byArea.map((c, i) => (
+                      <div key={i} className="px-4 py-3 flex items-center gap-3">
+                        <div className="w-10 text-xs text-stone-500">{c.pct}%</div>
+                        <div className="flex-1"><div className="text-sm text-stone-900">{c.cause}</div><div className="mt-1 h-1 rounded-full bg-stone-100 overflow-hidden"><div className="h-full bg-amber-400" style={{ width: c.pct * 4 + '%' }} /></div></div>
+                        <div className="text-sm font-mono text-stone-700">${c.amount.toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {adminTab === 'compliance' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-4">Compliance controls</h1>
+                <div className="space-y-3">
+                  {[{ label: 'CFTC registration as Designated Contract Market', status: 'in_progress' }, { label: 'KYC provider integration (Persona)', status: 'ok' }, { label: 'OFAC sanctions screening on deposits', status: 'ok' }, { label: 'FBO segregated account (Evolve Bank)', status: 'ok' }, { label: '1 percent revenue pledge, charter amendment filed', status: 'ok' }, { label: 'SOC 2 Type II audit', status: 'in_progress' }].map((c, i) => (
+                    <div key={i} className="flex items-center gap-3 p-4 rounded-lg bg-white border border-stone-200">
+                      <div className={`w-2 h-2 rounded-full ${c.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      <div className="flex-1 text-sm text-stone-900">{c.label}</div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{c.status === 'ok' ? 'OK' : 'In progress'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {adminTab === 'investor' && (
+              <div>
+                <h1 className="text-xl font-medium text-stone-900 mb-1">Investor materials</h1>
+                <p className="text-xs text-stone-500 mb-5">Pitch deck outline and one-pager</p>
+                <div className="p-6 rounded-lg bg-white border border-stone-200">
+                  <h3 className="text-sm font-medium text-stone-900 mb-3">One-pager preview</h3>
+                  <div className="border border-stone-200 rounded bg-stone-50 p-6 text-sm">
+                    <div className="flex items-center gap-2 mb-4"><Logo size={24} /><span className="font-serif text-stone-900">Clarion</span><span className="ml-auto text-xs text-stone-500">Seed round</span></div>
+                    <h4 className="text-base font-serif text-stone-900 mb-2">The prediction market for the conversations that matter.</h4>
+                    <p className="text-xs text-stone-700 mb-3">Curated markets across health, policy, culture, career, and science.</p>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div><div className="text-stone-500 uppercase mb-1">Opportunity</div><p className="text-stone-700">$3.7B raised in category in 2025. One demographic served.</p></div>
+                      <div><div className="text-stone-500 uppercase mb-1">Moat</div><p className="text-stone-700">Curation plus the Clarion Pledge plus analyst network.</p></div>
+                    </div>
+                    <div className="pt-3 mt-3 border-t border-stone-200 text-xs text-stone-700"><span className="text-stone-500">Raising:</span> <span className="font-medium">$4M seed</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========== MAIN APP ==========
+export default function Clarion() {
+  const [user] = useState({ email: 'demo@clarion.app', name: 'Demo', id: 'usr_demo', kyc: true });
+  const [markets, setMarkets] = useState(initialMarkets);
+  const [ledger, setLedger] = useState(initialLedger);
+  const [users] = useState(mockUsers);
+  const [waitlist, setWaitlist] = useState(initialWaitlist);
+  const [submissions, setSubmissions] = useState(initialSubmissions);
+  const [communityUsers, setCommunityUsers] = useState(initialCommunityUsers);
+
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [selectedMarket, setSelectedMarket] = useState(null);
+  const [tradeSide, setTradeSide] = useState(null);
+  const [tradeAmount, setTradeAmount] = useState(10);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState('home');
+  const [balance, setBalance] = useState(50);
+  const [positions, setPositions] = useState([]);
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [showDevMenu, setShowDevMenu] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState(null);
+
+  const handleFollowToggle = (userId) => {
+    setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: !u.following } : u));
+  };
+
+  const handleTrade = () => {
+    setShowConfirm(true);
+    const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
+    const cost = (tradeAmount * price) / 100;
+    const pledgeAmount = cost * 0.01;
+    setBalance(b => Math.max(0, b - cost));
+    const shares = Math.floor((tradeAmount / price) * 100);
+    setPositions(p => [...p, { id: 'p' + Date.now(), marketId: selectedMarket.id, market: selectedMarket.question, category: selectedMarket.category, side: tradeSide, shares, avgPrice: price, invested: cost }]);
+    setLedger(prev => [
+      { id: 'le_t' + Date.now(), userId: 'usr_demo', type: 'trade', amount: -cost, ref: 'trd_demo', ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: tradeSide.toUpperCase() + ' practice trade' },
+      { id: 'le_p' + Date.now(), userId: 'usr_demo', type: 'pledge', amount: -pledgeAmount, ref: 'trd_demo', ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: '1 percent pledge' },
+      ...prev,
+    ]);
+    setTimeout(() => { setShowConfirm(false); setTradeSide(null); setSelectedMarket(null); }, 1800);
+  };
+
+  // Profile view
+  if (viewingProfile) {
+    return <UserProfileView profileUser={viewingProfile} onClose={() => setViewingProfile(null)} onFollowToggle={handleFollowToggle} myPositions={positions} markets={markets} onViewMarket={setSelectedMarket} />;
+  }
+
+  // Trade modal
+  if (selectedMarket && tradeSide) {
+    const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
+    const shares = Math.floor((tradeAmount / price) * 100);
+    const cost = (tradeAmount * price) / 100;
+    const pledgeAmount = cost * 0.01;
+    const cause = causesByCategory[selectedMarket.category];
+    return (
+      <div className="min-h-screen bg-amber-50/40 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-200 text-xs uppercase text-amber-900 font-medium flex items-center gap-1"><Beaker className="w-3 h-3" /> Practice mode</div>
+          {showConfirm ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8 text-emerald-600" /></div>
+              <h3 className="text-xl font-serif text-stone-900 mb-2">Position opened</h3>
+              <p className="text-stone-600 text-sm mb-3">{shares} shares of {tradeSide.toUpperCase()} at {price} cents</p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-900"><HandHeart className="w-3 h-3" /><span>1 percent pledged to {cause.name}</span></div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-6 mt-2">
+                <button onClick={() => setTradeSide(null)}><ArrowLeft className="w-5 h-5 text-stone-400" /></button>
+                <button onClick={() => { setTradeSide(null); setSelectedMarket(null); }}><X className="w-5 h-5 text-stone-400" /></button>
+              </div>
+              <p className="text-xs uppercase text-stone-500 mb-2">Placing trade</p>
+              <h3 className="text-lg font-serif text-stone-900 mb-6 leading-snug">{selectedMarket.question}</h3>
+              <div className={`rounded-2xl p-4 mb-4 ${tradeSide === 'yes' ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
+                <div className="flex justify-between items-baseline">
+                  <span className={`font-medium ${tradeSide === 'yes' ? 'text-emerald-700' : 'text-rose-700'}`}>{tradeSide.toUpperCase()}</span>
+                  <span className={`text-2xl font-serif ${tradeSide === 'yes' ? 'text-emerald-700' : 'text-rose-700'}`}>{price} cents</span>
+                </div>
+              </div>
+              <label className="block text-xs uppercase text-stone-500 mb-2">Amount</label>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl font-serif text-stone-900">$</span>
+                <input type="number" value={tradeAmount} onChange={e => setTradeAmount(Math.max(1, parseInt(e.target.value) || 0))} className="text-3xl font-serif text-stone-900 bg-transparent border-b border-stone-200 w-full focus:outline-none pb-1" />
+              </div>
+              <div className="flex gap-2 mb-4">{[5, 10, 25, 50].map(amt => <button key={amt} onClick={() => setTradeAmount(amt)} className="px-3 py-1 text-xs rounded-full bg-stone-100 text-stone-700">${amt}</button>)}</div>
+              <div className="bg-stone-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-stone-500">Shares</span><span className="text-stone-900 font-medium">{shares}</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">If right</span><span className="text-emerald-600 font-medium">+${shares - tradeAmount}</span></div>
+                <div className="flex justify-between pt-2 border-t border-stone-200"><span className="text-stone-500">Balance</span><span className="text-stone-900 font-medium">${balance.toFixed(2)}</span></div>
+              </div>
+              <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 border border-amber-100 mb-5">
+                <HandHeart className="w-4 h-4 text-amber-700" />
+                <div className="flex-1 text-xs text-amber-900 leading-snug"><span className="font-medium">1 percent of this trade (${pledgeAmount.toFixed(2)})</span> supports {cause.name}</div>
+              </div>
+              <button onClick={handleTrade} disabled={tradeAmount > balance} className={`w-full py-4 rounded-2xl font-medium text-white ${tradeSide === 'yes' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                {tradeAmount > balance ? 'Insufficient balance' : 'Confirm practice trade'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Market detail
+  if (selectedMarket) {
+    const Cat = categories.find(c => c.id === selectedMarket.category);
+    const CatIcon = Cat ? Cat.icon : null;
+    return (
+      <div className="min-h-screen bg-amber-50/40 pb-20 md:pb-6">
+        <div className="max-w-3xl mx-auto p-4 md:p-6">
+          <button onClick={() => setSelectedMarket(null)} className="flex items-center gap-2 text-stone-600 mb-4 text-sm"><ArrowLeft className="w-4 h-4" /> Back</button>
+          <div className="bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 rounded-3xl p-5 md:p-8 shadow-sm border border-amber-100 mb-4 relative">
+            <div className="absolute top-4 right-4 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-xs uppercase text-amber-800 font-medium flex items-center gap-1"><Beaker className="w-3 h-3" /> Practice</div>
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-xs text-stone-700">{CatIcon && <CatIcon className="w-3 h-3" />}<span className="capitalize">{selectedMarket.category}</span></div>
+              <span className="text-xs text-stone-400">Resolves {selectedMarket.ends}</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-serif text-stone-900 leading-tight mb-4">{selectedMarket.question}</h1>
+            <p className="text-stone-600 leading-relaxed mb-6 text-sm md:text-base">{selectedMarket.context}</p>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button onClick={() => setTradeSide('yes')} className="p-4 md:p-5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-left">
+                <div className="text-xs uppercase text-emerald-700 mb-1">Yes</div>
+                <div className="text-2xl md:text-3xl font-serif text-emerald-800">{selectedMarket.yes} cents</div>
+              </button>
+              <button onClick={() => setTradeSide('no')} className="p-4 md:p-5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-left">
+                <div className="text-xs uppercase text-rose-700 mb-1">No</div>
+                <div className="text-2xl md:text-3xl font-serif text-rose-800">{selectedMarket.no} cents</div>
+              </button>
+            </div>
+            <div className="pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-500">
+              <HandHeart className="w-3.5 h-3.5 text-amber-600" />
+              <span>1 percent of every trade supports {causesByCategory[selectedMarket.category].name}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const filtered = markets.filter(m => (activeCategory === 'all' || m.category === activeCategory) && m.status === 'open');
+  const trending = markets.filter(m => m.trending && m.status === 'open').slice(0, 3);
+
+  const tabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+
+  return (
+    <div className="min-h-screen bg-amber-50/40 pb-24 md:pb-6">
+      <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-xs text-amber-900">
+        <Beaker className="w-3.5 h-3.5" />
+        <span className="font-medium">Practice mode</span>
+        <span className="hidden md:inline">— no real money</span>
+        <button onClick={() => setShowWaitlist(true)} className="underline font-medium ml-1">Real-money waitlist ({waitlist.length})</button>
+      </div>
+
+      {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} waitlist={waitlist} setWaitlist={setWaitlist} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} />}
+
+      <header className="bg-white/80 backdrop-blur border-b border-amber-100 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4">
+          <div className="flex items-center justify-between mb-3 md:mb-4">
+            <div className="flex items-center gap-2">
+              <Logo size={32} />
+              <span className="text-xl font-serif text-stone-900">Clarion</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-100 text-sm">
+                <span className="text-xs text-stone-500 hidden md:inline">Practice $</span>
+                <span className="font-medium text-stone-900">${balance.toFixed(2)}</span>
+              </div>
+              <div className="relative">
+                <button onClick={() => setShowDevMenu(!showDevMenu)} className="w-8 h-8 rounded-full bg-stone-900 text-white flex items-center justify-center"><Terminal className="w-3.5 h-3.5" /></button>
+                {showDevMenu && (
+                  <div>
+                    <div className="fixed inset-0 z-20" onClick={() => setShowDevMenu(false)} />
+                    <div className="absolute right-0 top-10 w-60 bg-stone-900 text-white rounded-xl p-2 z-30 shadow-2xl">
+                      <div className="px-3 py-2 text-xs uppercase text-stone-400">Dev / Investor view</div>
+                      <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-1 text-sm overflow-x-auto pb-0.5">
+            {tabs.map(t => (
+              <button key={t} onClick={() => setActiveTab(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
+                {t === 'feed' && <Users className="w-3 h-3" />}
+                {t === 'leaderboard' && <Trophy className="w-3 h-3" />}
+                {t === 'profile' && <UserCircle className="w-3 h-3" />}
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
+
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 md:py-6">
+
+        {activeTab === 'home' && (
+          <div>
+            <div className="mb-5 p-5 md:p-8 rounded-3xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 text-white relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-64 h-64 bg-amber-300/20 rounded-full blur-3xl" />
+              <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-rose-300/15 rounded-full blur-3xl" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3"><Flame className="w-4 h-4 text-amber-200" /><span className="text-xs uppercase text-amber-200">Trending today</span></div>
+                <h2 className="text-xl md:text-2xl font-serif mb-4 leading-snug">{trending[0] ? trending[0].question : ''}</h2>
+                <button onClick={() => setSelectedMarket(trending[0])} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-200 text-stone-900 text-sm font-medium">Make a prediction <ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+            <div className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-200">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center flex-shrink-0"><HandHeart className="w-6 h-6 text-stone-800" /></div>
+                <div className="flex-1">
+                  <h3 className="text-base font-serif text-stone-900 mb-1">The Clarion Pledge</h3>
+                  <p className="text-sm text-stone-700 mb-3 leading-relaxed">1 percent of every trade supports women's health, mental health, economic empowerment, and reproductive rights. Community total: <span className="font-medium text-stone-900">${communityImpact.totalGiven.toLocaleString()}</span>.</p>
+                  <button onClick={() => setActiveTab('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
+                </div>
+              </div>
+            </div>
+            <h2 className="text-sm font-medium text-stone-900 uppercase mb-3">All markets</h2>
+            <div className="space-y-3">
+              {markets.filter(m => m.status === 'open').map(m => {
+                const Cat = categories.find(c => c.id === m.category);
+                const CatIcon = Cat ? Cat.icon : null;
+                return (
+                  <button key={m.id} onClick={() => setSelectedMarket(m)} className="w-full text-left p-4 md:p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 hover:from-amber-100 border border-amber-100">
+                    <div className="flex items-center gap-2 mb-2 text-xs text-stone-600">{CatIcon && <CatIcon className="w-3 h-3" />}<span className="capitalize">{m.category}</span><span className="text-stone-300">·</span><span>{m.volume}</span></div>
+                    <h3 className="text-base md:text-lg font-serif text-stone-900 leading-snug mb-3">{m.question}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-100/80">Yes {m.yes} cents</span>
+                      <span className="text-sm font-medium text-rose-700 px-2.5 py-0.5 rounded-full bg-rose-100/80">No {m.no} cents</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'markets' && (
+          <div>
+            <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
+              {categories.map(c => { const Icon = c.icon; return (
+                <button key={c.id} onClick={() => setActiveCategory(c.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap ${activeCategory === c.id ? 'bg-stone-900 text-white' : 'bg-white text-stone-700 border border-stone-200'}`}>
+                  <Icon className="w-3.5 h-3.5" />{c.name}
+                </button>
+              ); })}
+            </div>
+            <div className="space-y-3">
+              {filtered.map(m => {
+                const Cat = categories.find(c => c.id === m.category);
+                const CatIcon = Cat ? Cat.icon : null;
+                return (
+                  <button key={m.id} onClick={() => setSelectedMarket(m)} className="w-full text-left p-4 md:p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-100">
+                    <div className="flex items-center gap-2 mb-2 text-xs text-stone-600">{CatIcon && <CatIcon className="w-3 h-3" />}<span className="capitalize">{m.category}</span></div>
+                    <h3 className="text-base md:text-lg font-serif text-stone-900 leading-snug mb-3">{m.question}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-100/80">Yes {m.yes} cents</span>
+                      <span className="text-sm font-medium text-rose-700 px-2.5 py-0.5 rounded-full bg-rose-100/80">No {m.no} cents</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'feed' && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h1 className="text-xl md:text-2xl font-serif text-stone-900">Activity feed</h1>
+                <p className="text-sm text-stone-500">People you follow · 280 char comments</p>
+              </div>
+              <button onClick={() => setActiveTab('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
+            </div>
+            <ActivityFeed communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} />
+          </div>
+        )}
+
+        {activeTab === 'leaderboard' && (
+          <div>
+            <div className="mb-5">
+              <h1 className="text-xl md:text-2xl font-serif text-stone-900">Leaderboard</h1>
+              <p className="text-sm text-stone-500">Ranked by accuracy on resolved markets</p>
+            </div>
+            <LeaderboardTab communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} onViewProfile={setViewingProfile} />
+          </div>
+        )}
+
+        {activeTab === 'positions' && (
+          <div>
+            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-1">Your positions</h1>
+            <p className="text-sm text-stone-500 mb-4">{positions.length} open</p>
+            {positions.length > 0 ? (
+              <div className="space-y-3">
+                {positions.map(p => (
+                  <div key={p.id} className="p-4 md:p-5 rounded-2xl bg-white border border-stone-100">
+                    <h3 className="text-sm font-serif text-stone-900 mb-2">{p.market}</h3>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                      <span className="text-sm text-stone-500">{p.shares} shares at {p.avgPrice} cents</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl p-8 border border-stone-100 text-center">
+                <h3 className="text-lg font-serif text-stone-900 mb-2">No positions yet</h3>
+                <button onClick={() => setActiveTab('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
+          <div>
+            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-5">My profile</h1>
+            <MyProfileTab balance={balance} positions={positions} markets={markets} demoUser={user} />
+          </div>
+        )}
+
+        {activeTab === 'impact' && (
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center"><HandHeart className="w-6 h-6 text-stone-800" /></div>
+              <div><h1 className="text-xl md:text-2xl font-serif text-stone-900">Your impact</h1><p className="text-sm text-stone-500">The Clarion Pledge</p></div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-5 mb-5">
+              <div className="p-4 rounded-2xl bg-white border border-stone-100"><div className="text-xs uppercase text-stone-500 mb-1">You have given</div><div className="text-2xl font-serif text-stone-900">$0.00</div></div>
+              <div className="p-4 rounded-2xl bg-white border border-stone-100"><div className="text-xs uppercase text-stone-500 mb-1">Clarion matched</div><div className="text-2xl font-serif text-emerald-700">+$0.00</div></div>
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-rose-50 border border-amber-200 col-span-2 md:col-span-1"><div className="text-xs uppercase text-amber-800 mb-1">Community total</div><div className="text-2xl font-serif text-amber-900">${communityImpact.totalGiven.toLocaleString()}</div></div>
+            </div>
+            <div className="bg-white rounded-3xl border border-stone-100 overflow-hidden">
+              <div className="p-5 border-b border-stone-100"><h3 className="text-sm font-medium text-stone-900 uppercase">Cause allocation</h3></div>
+              <div className="divide-y divide-stone-100">
+                {communityImpact.byArea.map((c, i) => (
+                  <div key={i} className="p-4 flex items-center gap-3">
+                    <div className="w-10 text-right text-sm font-serif text-stone-900">{c.pct}%</div>
+                    <div className="flex-1"><div className="text-sm text-stone-900 mb-1">{c.cause}</div><div className="h-1.5 rounded-full bg-stone-100 overflow-hidden"><div className="h-full bg-gradient-to-r from-amber-400 to-rose-400" style={{ width: c.pct * 4 + '%' }} /></div></div>
+                    <div className="text-sm font-medium text-stone-900">${c.amount.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'about' && (
+          <div className="max-w-2xl">
+            <div className="mb-6 p-8 rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-200">
+              <h1 className="text-3xl md:text-4xl font-serif text-stone-900 leading-tight mb-3">The prediction market for reality TV.</h1>
+              <p className="text-base text-stone-700 leading-relaxed">Curated markets across Bachelor Nation, Bravo, Survivor, Netflix, and more. You already know who's going home — now back it. 1 percent of every trade goes to causes that matter.</p>
+            </div>
+            <h2 className="text-lg font-serif text-stone-900 mb-3">How we decide what to list</h2>
+            <p className="text-sm text-stone-700 leading-relaxed mb-5">Reality TV prediction markets work when the questions resolve cleanly and publicly. We only list markets where the outcome is unambiguous — broadcast results, confirmed cast decisions, and publicly verifiable events. No gossip, no speculation about private lives.</p>
+            <div className="grid md:grid-cols-2 gap-3 mb-8">
+              <div className="p-5 rounded-2xl bg-white border border-stone-100">
+                <div className="flex items-center gap-2 mb-2"><div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center"><Check className="w-3.5 h-3.5 text-emerald-700" /></div><h3 className="text-sm font-medium text-stone-900">We list</h3></div>
+                <ul className="space-y-2 text-sm text-stone-700">
+                  <li>· Episode eliminations and rose ceremonies</li>
+                  <li>· Finale outcomes and engagements</li>
+                  <li>· Tribal council votes</li>
+                  <li>· Reunion appearances</li>
+                  <li>· Season renewals</li>
+                  <li>· Cast-wide milestones</li>
+                </ul>
+              </div>
+              <div className="p-5 rounded-2xl bg-white border border-stone-100">
+                <div className="flex items-center gap-2 mb-2"><div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center"><X className="w-3.5 h-3.5 text-rose-700" /></div><h3 className="text-sm font-medium text-stone-900">We do not list</h3></div>
+                <ul className="space-y-2 text-sm text-stone-700">
+                  <li>· Markets based on unverified spoilers</li>
+                  <li>· Private relationships off-camera</li>
+                  <li>· Anything production crew could manipulate</li>
+                  <li>· Personal health or legal situations</li>
+                  <li>· Unconfirmed casting rumors</li>
+                  <li>· Markets that reward insider knowledge</li>
+                </ul>
+              </div>
+            </div>
+            <h2 className="text-lg font-serif text-stone-900 mb-3">On insider trading</h2>
+            <p className="text-sm text-stone-700 leading-relaxed mb-3">Production crews, network employees, and post-production staff are required to disclose their employment at signup. Matched users are blocked from trading on shows they have access to. Weekly markets close one hour before air. Finale markets close 48 hours before broadcast.</p>
+            <p className="text-sm text-stone-700 leading-relaxed">We'd rather run fewer markets cleanly than more markets badly.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-export default App;
