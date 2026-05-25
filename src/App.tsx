@@ -8,19 +8,19 @@ const BadgeCheck = Award;
 // ========== DATA ==========
 const categories = [
   { id: 'all', name: 'All', icon: Sparkles },
-  { id: 'bachelor', name: 'Bachelor', icon: Heart },
-  { id: 'bravo', name: 'Bravo', icon: Star },
-  { id: 'survivor', name: 'Survivor', icon: Flame },
-  { id: 'netflix', name: 'Netflix', icon: Tv },
-  { id: 'amazon', name: 'Amazon', icon: Globe },
+  { id: 'spotlight', name: 'Spotlight', icon: Flame },
+  { id: 'dating', name: 'Dating & Love', icon: Heart },
+  { id: 'competition', name: 'Competition', icon: Trophy },
+  { id: 'housewives', name: 'Housewives & Bravo', icon: Star },
+  { id: 'lifestyle', name: 'Family & Lifestyle', icon: Tv },
 ];
 
 const causesByCategory = {
-  bachelor: { name: "Mental health initiatives", org: "Policy Center for Maternal Mental Health, NAMI" },
-  bravo: { name: "Women's health research", org: "Society for Women's Health Research" },
-  survivor: { name: "Economic empowerment", org: "Ellevate Foundation, Kiva" },
-  netflix: { name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
-  amazon: { name: "Women's health research", org: "Society for Women's Health Research" },
+  spotlight: { name: "Mental health initiatives", org: "Policy Center for Maternal Mental Health, NAMI" },
+  dating: { name: "Mental health initiatives", org: "Policy Center for Maternal Mental Health, NAMI" },
+  competition: { name: "Economic empowerment", org: "Ellevate Foundation, Kiva" },
+  housewives: { name: "Women's health research", org: "Society for Women's Health Research" },
+  lifestyle: { name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
 };
 
 const causeOptions = [
@@ -31,42 +31,67 @@ const causeOptions = [
 ];
 
 const initialMarkets = [
-  { id: 1, category: 'bachelor', question: "Will Jonesy get a rose on this week's episode of The Bachelor?", context: "Jonesy has had a rocky two weeks but got a one-on-one last episode. Producers seem invested.", yes: 61, no: 39, volume: '$8.2k', traders: 312, comments: 87, trending: true, ends: 'May 27, 2026', status: 'open' },
-  { id: 2, category: 'bachelor', question: "Will the Bachelor finale end with an engagement?", context: "Season 31 finale airs June 10. Two contestants remain — odds are heavily debated in Bachelor Nation.", yes: 74, no: 26, volume: '$14.1k', traders: 509, comments: 203, trending: true, ends: 'Jun 10, 2026', status: 'open' },
-  { id: 3, category: 'bachelor', question: "Will there be a two-on-one date in the next episode?", context: "Previews show a dramatic beach confrontation. Classic two-on-one setup.", yes: 82, no: 18, volume: '$3.4k', traders: 178, comments: 44, ends: 'May 27, 2026', status: 'open' },
-  { id: 4, category: 'bravo', question: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", context: "Bethenny has been vocal about a potential return. Producers have not confirmed either way.", yes: 38, no: 62, volume: '$11.7k', traders: 421, comments: 156, trending: true, ends: 'Jun 15, 2026', status: 'open' },
-  { id: 5, category: 'bravo', question: "Will the Vanderpump Rules cast return for another season?", context: "Viewership rebounded after Scandoval but Bravo has been quiet on renewal.", yes: 55, no: 45, volume: '$9.3k', traders: 388, comments: 112, ends: 'Jul 1, 2026', status: 'open' },
-  { id: 6, category: 'bravo', question: "Will there be a physical altercation on this season of RHONJ?", context: "Tensions between two main cast members have been building for three episodes.", yes: 79, no: 21, volume: '$6.8k', traders: 267, comments: 93, ends: 'Jun 3, 2026', status: 'open' },
-  { id: 7, category: 'survivor', question: "Will the current immunity idol holder make it to the final five?", context: "She has the only known idol in the game and a tight alliance of three.", yes: 58, no: 42, volume: '$7.1k', traders: 291, comments: 78, trending: true, ends: 'Jun 4, 2026', status: 'open' },
-  { id: 8, category: 'survivor', question: "Will there be a tribe swap in the next two episodes?", context: "Swap typically happens around day 14. We are at day 13 in the game.", yes: 71, no: 29, volume: '$4.2k', traders: 198, comments: 51, ends: 'Jun 4, 2026', status: 'open' },
-  { id: 9, category: 'survivor', question: "Will this season's winner be a woman?", context: "Women have won 21 of 46 seasons. The current edit favors two female contenders.", yes: 63, no: 37, volume: '$12.4k', traders: 476, comments: 134, ends: 'Jun 18, 2026', status: 'open' },
-  { id: 10, category: 'netflix', question: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", context: "Seasons 1 and 4 each produced one lasting marriage. Season 8 couples seem stronger.", yes: 34, no: 66, volume: '$8.9k', traders: 334, comments: 97, ends: 'Dec 31, 2027', status: 'open' },
-  { id: 11, category: 'netflix', question: "Will Too Hot To Handle Season 6 be renewed before the finale airs?", context: "Netflix has pre-announced renewals for this franchise before. Viewership numbers are strong.", yes: 47, no: 53, volume: '$5.6k', traders: 221, comments: 63, ends: 'Jun 20, 2026', status: 'open' },
-  { id: 12, category: 'amazon', question: "Will the next eliminated contestant on The Traitors US win the fan vote to return?", context: "Amazon Prime added a fan-vote return twist this season. The last two eliminated are fan favorites.", yes: 66, no: 34, volume: '$6.3k', traders: 248, comments: 71, ends: 'Jun 1, 2026', status: 'open' },
+  // ===== SPOTLIGHT (hot right now) =====
+  { id: 1, category: 'spotlight', question: "Will Love Island USA have a dramatic recoupling in its premiere week?", context: "Love Island USA returns June 2 on Peacock. Season 7 cast has been announced and fans are already debating alliances.", yes: 78, no: 22, volume: '$12.4k', traders: 487, comments: 134, trending: true, ends: 'Jun 8, 2026', status: 'open' },
+  { id: 2, category: 'spotlight', question: "Will The Traitors US have a double elimination this week?", context: "Six players remain. The roundtable has been getting more chaotic each episode as alliances fracture.", yes: 54, no: 46, volume: '$9.7k', traders: 381, comments: 112, trending: true, ends: 'Jun 1, 2026', status: 'open' },
+  { id: 3, category: 'spotlight', question: "Will Calabasas Confidential beat its premiere night viewership expectations?", context: "Premieres May 29. Early buzz has been strong and the Kardashian adjacent cast is drawing attention.", yes: 61, no: 39, volume: '$6.2k', traders: 244, comments: 78, trending: true, ends: 'Jun 1, 2026', status: 'open' },
+
+  // ===== DATING & LOVE =====
+  { id: 4, category: 'dating', question: "Will the Bachelor finale end with an engagement?", context: "Season 31 finale airs June 10. Two contestants remain — odds are heavily debated in Bachelor Nation.", yes: 74, no: 26, volume: '$14.1k', traders: 509, comments: 203, trending: true, ends: 'Jun 10, 2026', status: 'open' },
+  { id: 5, category: 'dating', question: "Will there be a two-on-one date in the next Bachelor episode?", context: "Previews show a dramatic beach confrontation. Classic two-on-one setup.", yes: 82, no: 18, volume: '$3.4k', traders: 178, comments: 44, ends: 'May 27, 2026', status: 'open' },
+  { id: 6, category: 'dating', question: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", context: "Seasons 1 and 4 each produced one lasting marriage. Season 8 couples seem stronger on paper.", yes: 34, no: 66, volume: '$8.9k', traders: 334, comments: 97, ends: 'Dec 31, 2027', status: 'open' },
+  { id: 7, category: 'dating', question: "Will a Love Island USA couple from Season 7 still be together six months after the finale?", context: "Season 7 premieres June 2. Historically only about 30% of couples survive past the show.", yes: 41, no: 59, volume: '$7.3k', traders: 289, comments: 88, ends: 'Dec 31, 2026', status: 'open' },
+  { id: 8, category: 'dating', question: "Will Too Hot To Handle Season 6 be renewed before the finale airs?", context: "Netflix has pre-announced renewals for this franchise before. Viewership is tracking strong.", yes: 47, no: 53, volume: '$5.6k', traders: 221, comments: 63, ends: 'Jun 20, 2026', status: 'open' },
+  { id: 9, category: 'dating', question: "Will 90 Day Fiancé feature a same-sex couple in its next season?", context: "The franchise has expanded significantly. Fans have been calling for more diverse casting.", yes: 38, no: 62, volume: '$4.8k', traders: 192, comments: 54, ends: 'Dec 31, 2026', status: 'open' },
+  { id: 10, category: 'dating', question: "Will Perfect Match Season 3 be announced before the end of summer?", context: "Season 2 performed well for Netflix. Alumni from multiple shows are already being speculated.", yes: 63, no: 37, volume: '$5.1k', traders: 203, comments: 61, ends: 'Sep 1, 2026', status: 'open' },
+
+  // ===== COMPETITION =====
+  { id: 11, category: 'competition', question: "Will this season's Survivor winner be a woman?", context: "Women have won 21 of 46 seasons. The current winner's edit strongly favors two female contenders.", yes: 63, no: 37, volume: '$12.4k', traders: 476, comments: 134, ends: 'Jun 18, 2026', status: 'open' },
+  { id: 12, category: 'competition', question: "Will there be a hidden immunity idol played at the next Survivor tribal council?", context: "Two idols are unaccounted for. The vote tonight is expected to be chaotic.", yes: 67, no: 33, volume: '$4.2k', traders: 198, comments: 51, ends: 'Jun 4, 2026', status: 'open' },
+  { id: 13, category: 'competition', question: "Will a woman win The Traitors US this season?", context: "Four of the six remaining players are women. The traitor reveal has fans theorizing constantly.", yes: 71, no: 29, volume: '$8.8k', traders: 342, comments: 97, trending: true, ends: 'Jun 15, 2026', status: 'open' },
+  { id: 14, category: 'competition', question: "Will Big Brother 27 cast include a returning player?", context: "Big Brother has mixed returning players in three of the last five seasons. Casting hints have been vague.", yes: 44, no: 56, volume: '$6.1k', traders: 241, comments: 72, ends: 'Jul 15, 2026', status: 'open' },
+  { id: 15, category: 'competition', question: "Will RuPaul's Drag Race crown a queen of color this season?", context: "Queens of color have won 9 of the last 12 seasons. The top 4 remaining all have strong track records.", yes: 76, no: 24, volume: '$7.4k', traders: 293, comments: 88, ends: 'Jun 28, 2026', status: 'open' },
+  { id: 16, category: 'competition', question: "Will Beast Games Season 2 be confirmed before Season 1 finale airs?", context: "MrBeast has hinted at a second season. Amazon hasn't confirmed but viewership numbers were massive.", yes: 58, no: 42, volume: '$9.2k', traders: 364, comments: 103, ends: 'Jul 1, 2026', status: 'open' },
+  { id: 17, category: 'competition', question: "Will The Amazing Race return for another season in 2026?", context: "The Amazing Race has been renewed consistently. CBS has been quiet on a Season 36 announcement.", yes: 69, no: 31, volume: '$4.7k', traders: 187, comments: 49, ends: 'Dec 31, 2026', status: 'open' },
+
+  // ===== HOUSEWIVES & BRAVO =====
+  { id: 18, category: 'housewives', question: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", context: "Bethenny has been vocal about a potential return. Producers have not confirmed either way.", yes: 38, no: 62, volume: '$11.7k', traders: 421, comments: 156, trending: true, ends: 'Jun 15, 2026', status: 'open' },
+  { id: 19, category: 'housewives', question: "Will Vanderpump Rules be renewed for another season?", context: "Viewership rebounded post-Scandoval but Bravo has stayed quiet. Cast contracts are reportedly up.", yes: 55, no: 45, volume: '$9.3k', traders: 388, comments: 112, ends: 'Jul 1, 2026', status: 'open' },
+  { id: 20, category: 'housewives', question: "Will there be a physical altercation on this season of RHONJ?", context: "Tensions between two main cast members have been building for three episodes straight.", yes: 79, no: 21, volume: '$6.8k', traders: 267, comments: 93, ends: 'Jun 3, 2026', status: 'open' },
+  { id: 21, category: 'housewives', question: "Will Below Deck Med have a crew member fired mid-season?", context: "Captain Sandy has fired crew members in 3 of the last 5 seasons. Early episodes show serious tension.", yes: 62, no: 38, volume: '$5.4k', traders: 214, comments: 67, ends: 'Jul 20, 2026', status: 'open' },
+  { id: 22, category: 'housewives', question: "Will Southern Charm be renewed for Season 10?", context: "Season 9 has performed steadily. Bravo has been expanding its lifestyle lineup.", yes: 66, no: 34, volume: '$4.1k', traders: 163, comments: 44, ends: 'Sep 1, 2026', status: 'open' },
+  { id: 23, category: 'housewives', question: "Will RHOSLC have a cast member exit before the reunion?", context: "At least one cast member has reportedly filmed limited confessionals this season — a classic exit signal.", yes: 57, no: 43, volume: '$7.2k', traders: 286, comments: 81, ends: 'Jun 30, 2026', status: 'open' },
+
+  // ===== FAMILY & LIFESTYLE =====
+  { id: 24, category: 'lifestyle', question: "Will The Kardashians Season 6 feature a major relationship announcement?", context: "Hulu has been promoting the season heavily. At least two cast members have had relationship news offscreen.", yes: 72, no: 28, volume: '$10.3k', traders: 407, comments: 128, trending: true, ends: 'Jul 1, 2026', status: 'open' },
+  { id: 25, category: 'lifestyle', question: "Will Secret Lives of Mormon Wives be renewed for Season 3?", context: "Season 2 was a massive breakout hit for Hulu. The cast has stayed active and drama has continued offscreen.", yes: 81, no: 19, volume: '$8.6k', traders: 341, comments: 104, ends: 'Sep 1, 2026', status: 'open' },
+  { id: 26, category: 'lifestyle', question: "Will Selling Sunset introduce a new cast member in the back half of Season 8?", context: "The show has consistently added cast mid-season. Jason Oppenheim has hinted at new agents joining.", yes: 68, no: 32, volume: '$5.8k', traders: 229, comments: 69, ends: 'Jul 15, 2026', status: 'open' },
+  { id: 27, category: 'lifestyle', question: "Will Queer Eye's final season receive an Emmy nomination?", context: "The final season was announced recently. The show has received 7 Emmy wins across its run.", yes: 59, no: 41, volume: '$4.4k', traders: 174, comments: 52, ends: 'Jul 31, 2026', status: 'open' },
+  { id: 28, category: 'lifestyle', question: "Will Jersey Shore Family Vacation film another international trip this season?", context: "The cast has filmed in Italy and the Bahamas before. Producers have been teasing a new location.", yes: 53, no: 47, volume: '$3.9k', traders: 155, comments: 41, ends: 'Aug 1, 2026', status: 'open' },
 ];
 
 // ========== MOCK COMMUNITY USERS ==========
 const initialCommunityUsers = [
   { id: 'usr_001', username: 'leilac', name: 'Leila Cho', accuracy: 74, totalTrades: 47, impactScore: 312, leaderboardRank: 1, following: true, cause: 'womens_health', causePrivate: false, positions: [
-    { marketId: 2, market: "Will the Bachelor finale end with an engagement?", category: 'bachelor', side: 'yes', amount: 25, ts: '2h ago', resolved: false },
-    { marketId: 7, market: "Will the current immunity idol holder make it to the final five?", category: 'survivor', side: 'yes', amount: 50, ts: '1d ago', resolved: false },
+    { marketId: 4, market: "Will the Bachelor finale end with an engagement?", category: 'dating', side: 'yes', amount: 25, ts: '2h ago', resolved: false },
+    { marketId: 13, market: "Will a woman win The Traitors US this season?", category: 'competition', side: 'yes', amount: 50, ts: '1d ago', resolved: false },
   ]},
   { id: 'usr_002', username: 'marcuschen', name: 'Marcus Chen', accuracy: 61, totalTrades: 31, impactScore: 187, leaderboardRank: 2, following: true, cause: 'economic', causePrivate: false, positions: [
-    { marketId: 5, market: "Will the Vanderpump Rules cast return for another season?", category: 'bravo', side: 'no', amount: 30, ts: '3h ago', resolved: false },
-    { marketId: 10, market: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", category: 'netflix', side: 'no', amount: 20, ts: '5h ago', resolved: false },
+    { marketId: 19, market: "Will Vanderpump Rules be renewed for another season?", category: 'housewives', side: 'no', amount: 30, ts: '3h ago', resolved: false },
+    { marketId: 6, market: "Will Love Is Blind Season 8 produce at least two marriages that last a year?", category: 'dating', side: 'no', amount: 20, ts: '5h ago', resolved: false },
   ]},
   { id: 'usr_003', username: 'sarahkim', name: 'Sarah Kim', accuracy: 58, totalTrades: 19, impactScore: 94, leaderboardRank: 3, following: false, cause: 'mental_health', causePrivate: true, positions: [
-    { marketId: 1, market: "Will Jonesy get a rose on this week's episode of The Bachelor?", category: 'bachelor', side: 'yes', amount: 15, ts: '6h ago', resolved: false },
+    { marketId: 1, market: "Will Love Island USA have a dramatic recoupling in its premiere week?", category: 'spotlight', side: 'yes', amount: 15, ts: '6h ago', resolved: false },
   ]},
   { id: 'usr_004', username: 'janedoe_wx', name: 'Jane Doe', accuracy: 55, totalTrades: 12, impactScore: 61, leaderboardRank: 4, following: false, cause: 'reproductive', causePrivate: false, positions: [
-    { marketId: 4, market: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", category: 'bravo', side: 'no', amount: 40, ts: '1d ago', resolved: false },
+    { marketId: 18, market: "Will Bethenny Frankel appear on the Real Housewives of New York reunion?", category: 'housewives', side: 'no', amount: 40, ts: '1d ago', resolved: false },
   ]},
   { id: 'usr_005', username: 'priyav', name: 'Priya V.', accuracy: 52, totalTrades: 8, impactScore: 44, leaderboardRank: 5, following: false, cause: 'womens_health', causePrivate: false, positions: [] },
 ];
 
 const mockActivityComments = {
-  'usr_001_2': [{ id: 'c1', author: 'marcuschen', text: 'Bold call — the edit has been too obvious. They never show the winner this much.', ts: '1h ago' }],
-  'usr_002_5': [],
+  'usr_001_4': [{ id: 'c1', author: 'marcuschen', text: 'Bold call — the edit has been too obvious. They never show the winner this much.', ts: '1h ago' }],
+  'usr_002_19': [],
 };
 
 const mockUsers = [
@@ -92,21 +117,21 @@ const initialWaitlist = [
 ];
 
 const automationTemplates = [
-  { source: 'event-feed', category: 'bachelor', question: "Will the next rose ceremony have a surprise self-elimination?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'event-feed', category: 'bravo', question: "Will this season of RHONY end with a cast shakeup?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'llm-drafted', category: 'survivor', question: "Will there be a hidden immunity idol played at the next tribal council?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'llm-drafted', category: 'netflix', question: "Will Love Is Blind drop a surprise reunion episode this season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'scheduled-event', category: 'bachelor', question: "Will the Bachelor hometown dates include a dramatic family confrontation?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'community', category: 'bravo', question: "Will a new cast member be added to Vanderpump Rules mid-season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'llm-drafted', category: 'amazon', question: "Will The Traitors US have a double elimination this week?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
-  { source: 'community', category: 'bachelor', question: "Will a specific contestant win based on spoiler sites?", passes: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Based on unverified spoiler content. No clean public resolution source." },
-  { source: 'community', category: 'bravo', question: "Will a cast member announce a personal health issue this season?", passes: { publicResolution: false, noPerverseIncentive: false, dignity: false, valuesAligned: false }, rejectReason: "Privacy concern. Markets on personal health situations are not permitted." },
+  { source: 'event-feed', category: 'dating', question: "Will the next Bachelor rose ceremony end with a surprise walkout?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'event-feed', category: 'housewives', question: "Will this season of RHONY end with a cast shakeup announcement?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'competition', question: "Will there be a hidden immunity idol played at the next Survivor tribal council?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'dating', question: "Will Love Island USA drop a surprise recoupling before episode 3?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'scheduled-event', category: 'competition', question: "Will The Traitors US finale air without a bonus episode this season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'community', category: 'housewives', question: "Will a new cast member be added to Vanderpump Rules mid-season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'llm-drafted', category: 'lifestyle', question: "Will The Kardashians feature a surprise guest appearance this season?", passes: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true } },
+  { source: 'community', category: 'spotlight', question: "Will a specific Love Island contestant win based on early fan polls?", passes: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Fan polls are not a reliable public resolution source." },
+  { source: 'community', category: 'housewives', question: "Will a cast member announce a personal health issue this season?", passes: { publicResolution: false, noPerverseIncentive: false, dignity: false, valuesAligned: false }, rejectReason: "Privacy concern. Markets on personal health situations are not permitted." },
 ];
 
 const initialSubmissions = [
-  { id: 'sub_001', submitter: 'BachelorNation_fan', source: 'community', time: '2h ago', category: 'bachelor', question: "Will the Bachelor skip the fantasy suites this season?", context: "Lead has made comments in interviews suggesting he wants a different path.", endsHint: "Jun 3, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
-  { id: 'sub_002', submitter: 'BravoSuperFan', source: 'community', time: '4h ago', category: 'bravo', question: "Will the RHOSLC cast film a trip to Mexico this season?", context: "Multiple cast members hinted at an international trip on their social media.", endsHint: "Jul 1, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
-  { id: 'sub_003', submitter: 'Anonymous', source: 'community', time: '6h ago', category: 'bachelor', question: "Will a specific contestant win based on spoiler sites?", context: "Several spoiler accounts are reporting the same winner.", endsHint: "Jun 10, 2026", autoChecks: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Based on unverified spoiler content. No clean public resolution source.", status: 'pending' },
+  { id: 'sub_001', submitter: 'BachelorNation_fan', source: 'community', time: '2h ago', category: 'dating', question: "Will the Bachelor skip the fantasy suites this season?", context: "Lead has made comments in interviews suggesting he wants a different path.", endsHint: "Jun 3, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
+  { id: 'sub_002', submitter: 'TraitorsFan22', source: 'community', time: '4h ago', category: 'competition', question: "Will the Traitors finale have a live audience this season?", context: "Peacock has been expanding production on the show. The UK version uses a live studio format.", endsHint: "Jun 15, 2026", autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true }, status: 'pending' },
+  { id: 'sub_003', submitter: 'Anonymous', source: 'community', time: '6h ago', category: 'dating', question: "Will a specific Love Island contestant win based on early fan polls?", context: "Several fan accounts are reporting strong early numbers for one contestant.", endsHint: "Aug 1, 2026", autoChecks: { publicResolution: false, noPerverseIncentive: true, dignity: false, valuesAligned: false }, rejectReason: "Fan polls are not a reliable public resolution source.", status: 'pending' },
 ];
 
 const generateSubmission = () => {
