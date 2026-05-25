@@ -482,12 +482,19 @@ const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile }) =>
 };
 
 // ========== MY PROFILE TAB ==========
-const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
-  const [selectedCause, setSelectedCause] = useState('womens_health');
+const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setUserProfile, onLogout }) => {
+  const [selectedCause, setSelectedCause] = useState(userProfile?.cause || '');
   const [causePrivate, setCausePrivate] = useState(false);
   const [amountsPrivate, setAmountsPrivate] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
+  const [bio, setBio] = useState(userProfile?.bio || '');
   const totalPledged = positions.reduce((s, p) => s + (p.invested * 0.01), 0);
-  const accuracy = positions.length > 0 ? Math.round(Math.random() * 30 + 50) : 0;
+  const username = demoUser.username || demoUser.email?.split('@')[0] || 'you';
+
+  const saveBio = () => {
+    setUserProfile(prev => ({ ...prev, bio }));
+    setEditingBio(false);
+  };
 
   return (
     <div className="max-w-2xl">
@@ -495,11 +502,28 @@ const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
         <div className="h-16 bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100" />
         <div className="px-5 pb-5">
           <div className="flex items-end justify-between -mt-8 mb-4">
-            <Avatar username="demo" size={56} className="border-2 border-white" />
+            <Avatar username={username} size={56} className="border-2 border-white" />
             <span className="text-xs text-stone-400 flex items-center gap-1"><Beaker className="w-3 h-3" /> Practice account</span>
           </div>
-          <div className="text-lg font-serif text-stone-900 mb-0.5">Demo User</div>
-          <div className="flex items-center gap-1 text-sm text-stone-400 mb-4"><AtSign className="w-3.5 h-3.5" />demo</div>
+          <div className="text-lg font-serif text-stone-900 mb-0.5">{demoUser.name || username}</div>
+          <div className="flex items-center gap-1 text-sm text-stone-400 mb-3"><AtSign className="w-3.5 h-3.5" />{username}</div>
+          {editingBio ? (
+            <div className="mb-3">
+              <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={160} className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-sm focus:outline-none resize-none text-stone-900" rows={3} />
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-stone-400">{160 - bio.length} chars left</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingBio(false)} className="text-xs text-stone-400">Cancel</button>
+                  <button onClick={saveBio} className="text-xs font-medium text-stone-900">Save</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-3 flex items-start gap-2">
+              <p className="text-sm text-stone-600 flex-1">{bio || <span className="text-stone-400 italic">No bio yet</span>}</p>
+              <button onClick={() => setEditingBio(true)} className="text-xs text-stone-400 hover:text-stone-700 flex-shrink-0 flex items-center gap-1"><Edit3 className="w-3 h-3" /> Edit</button>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Practice balance', value: '$' + balance.toFixed(2) },
@@ -520,9 +544,9 @@ const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
         <p className="text-xs text-stone-500 mb-4">1% of every trade you place goes to your chosen cause.</p>
         <div className="space-y-2 mb-4">
           {causeOptions.map(c => (
-            <button key={c.id} onClick={() => setSelectedCause(c.id)} className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50'}`}>
-              <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${selectedCause === c.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'}`}>
-                {selectedCause === c.id && <Check className="w-2.5 h-2.5 text-white m-auto" style={{marginTop:'1px'}} />}
+            <button key={c.id} onClick={() => { setSelectedCause(c.id); setUserProfile(p => ({ ...p, cause: c.id })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50'}`}>
+              <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selectedCause === c.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'}`}>
+                {selectedCause === c.id && <Check className="w-2.5 h-2.5 text-white" style={{marginTop:'1px'}} />}
               </div>
               <div className="min-w-0">
                 <div className="text-sm text-stone-900 font-medium">{c.name}</div>
@@ -537,7 +561,7 @@ const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-100 p-5">
+      <div className="bg-white rounded-2xl border border-stone-100 p-5 mb-4">
         <h3 className="text-sm font-medium text-stone-900 mb-4">Privacy settings</h3>
         <div className="space-y-3">
           {[
@@ -549,13 +573,17 @@ const MyProfileTab = ({ balance, positions, markets, demoUser }) => {
                 <div className="text-sm text-stone-900">{s.label}</div>
                 <div className="text-xs text-stone-400 mt-0.5">{s.sub}</div>
               </div>
-              <button onClick={s.toggle} className={`w-10 h-5.5 rounded-full transition-colors relative flex-shrink-0 ${s.state ? 'bg-stone-900' : 'bg-stone-200'}`} style={{height:'22px', width:'40px'}}>
+              <button onClick={s.toggle} className={`w-10 rounded-full transition-colors relative flex-shrink-0 ${s.state ? 'bg-stone-900' : 'bg-stone-200'}`} style={{height:'22px', width:'40px'}}>
                 <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${s.state ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           ))}
         </div>
       </div>
+
+      <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-rose-100 text-rose-600 text-sm hover:bg-rose-50">
+        <LogOut className="w-4 h-4" /> Sign out
+      </button>
     </div>
   );
 };
@@ -834,9 +862,245 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
   );
 };
 
+// ========== LANDING PAGE ==========
+const LandingPage = ({ onLogin, onSignup, markets, categories }) => {
+  const trending = markets.filter(m => m.trending && m.status === 'open').slice(0, 3);
+  const preview = markets.filter(m => m.status === 'open').slice(0, 6);
+  return (
+    <div className="min-h-screen bg-amber-50/40">
+      <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-xs text-amber-900">
+        <Beaker className="w-3.5 h-3.5" />
+        <span className="font-medium">Practice mode</span>
+        <span className="hidden md:inline">— no real money, founding cohort only</span>
+      </div>
+      <header className="bg-white/80 backdrop-blur border-b border-amber-100 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Logo size={32} />
+            <span className="text-xl font-serif text-stone-900">Clarion</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onLogin} className="px-4 py-2 rounded-full text-sm text-stone-700 hover:bg-stone-100">Sign in</button>
+            <button onClick={onSignup} className="px-4 py-2 rounded-full bg-stone-900 text-white text-sm font-medium">Join</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-10 md:py-16">
+        <div className="max-w-2xl mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 border border-amber-200 text-xs text-amber-800 font-medium mb-5">
+            <Flame className="w-3 h-3" /> Founding cohort — practice mode open now
+          </div>
+          <h1 className="text-4xl md:text-6xl font-serif text-stone-900 leading-tight mb-5">
+            Back your reality TV takes with something real.
+          </h1>
+          <p className="text-lg text-stone-600 leading-relaxed mb-8">
+            Clarion is a prediction market for reality TV fans. Trade on Bachelor rose ceremonies, Survivor tribal councils, Housewives reunions, and more. 1% of every trade goes to causes that matter.
+          </p>
+          <div className="flex items-center gap-3">
+            <button onClick={onSignup} className="px-6 py-3 rounded-full bg-stone-900 text-white font-medium flex items-center gap-2">
+              Join the founding cohort <ChevronRight className="w-4 h-4" />
+            </button>
+            <button onClick={onLogin} className="px-6 py-3 rounded-full border border-stone-200 text-stone-700 text-sm">Already have an account</button>
+          </div>
+        </div>
+
+        <div className="mb-4 flex items-center gap-2">
+          <Flame className="w-4 h-4 text-amber-600" />
+          <span className="text-sm font-medium text-stone-700 uppercase tracking-wide">Live markets — sign in to trade</span>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3 mb-10">
+          {preview.map(m => {
+            const Cat = categories.find(c => c.id === m.category);
+            const CatIcon = Cat ? Cat.icon : null;
+            return (
+              <div key={m.id} className="p-4 md:p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-100 relative">
+                <div className="flex items-center gap-2 mb-2 text-xs text-stone-500">
+                  {CatIcon && <CatIcon className="w-3 h-3" />}
+                  <span className="capitalize">{m.category}</span>
+                  {m.show && <><span className="text-stone-300">·</span><span className="font-medium text-stone-600">{m.show}</span></>}
+                </div>
+                <h3 className="text-base font-serif text-stone-900 leading-snug mb-3">{m.question}</h3>
+                <div className="flex items-center gap-2 flex-wrap mb-3">
+                  <span className="text-sm font-medium text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-100/80">Yes {m.yes} cents</span>
+                  <span className="text-sm font-medium text-rose-700 px-2.5 py-0.5 rounded-full bg-rose-100/80">No {m.no} cents</span>
+                </div>
+                <button onClick={onSignup} className="text-xs text-stone-500 flex items-center gap-1 hover:text-stone-800">
+                  <Lock className="w-3 h-3" /> Sign in to trade
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4 mb-16">
+          {[
+            { icon: Tv, title: 'Reality TV markets', desc: 'Bachelor, Survivor, Traitors, Housewives, Love Island and more — markets that resolve weekly.' },
+            { icon: Trophy, title: 'Leaderboard & profiles', desc: 'Track your accuracy, follow other traders, see who called it right before anyone else.' },
+            { icon: HandHeart, title: 'The Clarion Pledge', desc: '1% of every trade supports women\'s health, mental health, economic empowerment, and reproductive rights.' },
+          ].map((f, i) => (
+            <div key={i} className="p-5 rounded-2xl bg-white border border-stone-100">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+                <f.icon className="w-5 h-5 text-amber-700" />
+              </div>
+              <h3 className="text-sm font-medium text-stone-900 mb-2">{f.title}</h3>
+              <p className="text-sm text-stone-500 leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <p className="text-sm text-stone-400">Clarion is in practice mode — no real money. Founding cohort only.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========== AUTH MODAL ==========
+const AuthModal = ({ mode, onClose, onAuth }) => {
+  const [view, setView] = useState(mode);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    setError('');
+    if (!email.includes('@')) { setError('Please enter a valid email.'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (view === 'signup' && !username.trim()) { setError('Please choose a username.'); return; }
+    setLoading(true);
+    // Simulate async — replace with real Supabase call
+    setTimeout(() => {
+      setLoading(false);
+      onAuth({ email, username: username || email.split('@')[0], id: 'usr_' + Date.now() });
+    }, 800);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-5 right-5 text-stone-400"><X className="w-5 h-5" /></button>
+        <div className="flex items-center gap-2 mb-6">
+          <Logo size={28} />
+          <span className="font-serif text-stone-900">Clarion</span>
+        </div>
+        <h2 className="text-2xl font-serif text-stone-900 mb-1">
+          {view === 'login' ? 'Welcome back' : 'Join the founding cohort'}
+        </h2>
+        <p className="text-sm text-stone-500 mb-6">
+          {view === 'login' ? 'Sign in to your account' : 'Practice mode · No real money'}
+        </p>
+
+        {view === 'signup' && (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-stone-600 mb-1.5">Username</label>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 focus-within:border-stone-400">
+              <AtSign className="w-4 h-4 text-stone-400 flex-shrink-0" />
+              <input type="text" value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="yourname" className="bg-transparent text-sm focus:outline-none flex-1 text-stone-900" />
+            </div>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-stone-600 mb-1.5">Email</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900" />
+        </div>
+
+        <div className="mb-2">
+          <label className="block text-xs font-medium text-stone-600 mb-1.5">Password</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="••••••••" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900" />
+        </div>
+
+        {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
+
+        <button onClick={handleSubmit} disabled={loading} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium mt-4 disabled:opacity-60">
+          {loading ? 'Just a moment…' : view === 'login' ? 'Sign in' : 'Create account'}
+        </button>
+
+        <p className="text-center text-xs text-stone-500 mt-4">
+          {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
+          <button onClick={() => { setView(view === 'login' ? 'signup' : 'login'); setError(''); }} className="text-stone-900 font-medium underline">
+            {view === 'login' ? 'Join' : 'Sign in'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ========== ONBOARDING ==========
+const Onboarding = ({ user, onComplete }) => {
+  const [step, setStep] = useState(1);
+  const [bio, setBio] = useState('');
+  const [selectedCause, setSelectedCause] = useState('');
+
+  return (
+    <div className="min-h-screen bg-amber-50/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8">
+        <div className="flex items-center gap-2 mb-6">
+          <Logo size={28} />
+          <span className="font-serif text-stone-900">Clarion</span>
+          <span className="ml-auto text-xs text-stone-400">Step {step} of 2</span>
+        </div>
+
+        <div className="flex gap-1 mb-8">
+          {[1, 2].map(s => (
+            <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-stone-900' : 'bg-stone-100'}`} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-1">Welcome, @{user.username} 👋</h2>
+            <p className="text-sm text-stone-500 mb-6">Tell us a little about yourself.</p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-stone-600 mb-1.5">Bio <span className="text-stone-400 font-normal">(optional)</span></label>
+              <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={160} placeholder="Reality TV obsessive, Survivor superfan, bad at keeping spoilers to myself…" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none resize-none text-stone-900" rows={3} />
+              <div className="text-right text-xs text-stone-400 mt-1">{160 - bio.length}</div>
+            </div>
+            <button onClick={() => setStep(2)} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium">Continue</button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-1">The Clarion Pledge</h2>
+            <p className="text-sm text-stone-500 mb-6">1% of every trade you place goes to a cause you choose. Pick yours.</p>
+            <div className="space-y-2 mb-6">
+              {causeOptions.map(c => (
+                <button key={c.id} onClick={() => setSelectedCause(c.id)} className={`w-full flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50 hover:border-stone-200'}`}>
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selectedCause === c.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'}`}>
+                    {selectedCause === c.id && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-900">{c.name}</div>
+                    <div className="text-xs text-stone-400 truncate">{c.org}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => onComplete({ bio, cause: selectedCause })} disabled={!selectedCause} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium disabled:opacity-40">
+              Start trading
+            </button>
+            <button onClick={() => onComplete({ bio, cause: '' })} className="w-full py-2 text-xs text-stone-400 mt-2">Skip for now</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ========== MAIN APP ==========
 export default function Clarion() {
-  const [user] = useState({ email: 'demo@clarion.app', name: 'Demo', id: 'usr_demo', kyc: true });
+  // Auth state
+  const [authUser, setAuthUser] = useState(null); // null = logged out
+  const [authScreen, setAuthScreen] = useState(null); // 'login' | 'signup' | null
+  const [onboarding, setOnboarding] = useState(false);
+  const [userProfile, setUserProfile] = useState({ bio: '', cause: '' });
+
   const [markets, setMarkets] = useState(initialMarkets);
   const [ledger, setLedger] = useState(initialLedger);
   const [users] = useState(mockUsers);
@@ -856,6 +1120,54 @@ export default function Clarion() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
+
+  const handleAuth = (userData) => {
+    setAuthUser(userData);
+    setAuthScreen(null);
+    if (!userData.returning) setOnboarding(true);
+  };
+
+  const handleOnboardingComplete = (profileData) => {
+    setUserProfile(profileData);
+    setOnboarding(false);
+  };
+
+  const handleLogout = () => {
+    setAuthUser(null);
+    setActiveTab('home');
+    setSelectedMarket(null);
+    setTradeSide(null);
+    setPositions([]);
+    setBalance(50);
+  };
+
+  // Show landing page if not logged in
+  if (!authUser) {
+    return (
+      <>
+        <LandingPage
+          onLogin={() => setAuthScreen('login')}
+          onSignup={() => setAuthScreen('signup')}
+          markets={initialMarkets}
+          categories={categories}
+        />
+        {authScreen && (
+          <AuthModal
+            mode={authScreen}
+            onClose={() => setAuthScreen(null)}
+            onAuth={handleAuth}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Show onboarding for new users
+  if (onboarding) {
+    return <Onboarding user={authUser} onComplete={handleOnboardingComplete} />;
+  }
+
+  const user = authUser;
 
   const handleFollowToggle = (userId) => {
     setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: !u.following } : u));
@@ -1006,13 +1318,22 @@ export default function Clarion() {
                 <span className="font-medium text-stone-900">${balance.toFixed(2)}</span>
               </div>
               <div className="relative">
-                <button onClick={() => setShowDevMenu(!showDevMenu)} className="w-8 h-8 rounded-full bg-stone-900 text-white flex items-center justify-center"><Terminal className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setShowDevMenu(!showDevMenu)} className="flex items-center gap-2">
+                  <Avatar username={user.username || user.email} size={32} />
+                </button>
                 {showDevMenu && (
                   <div>
                     <div className="fixed inset-0 z-20" onClick={() => setShowDevMenu(false)} />
                     <div className="absolute right-0 top-10 w-60 bg-stone-900 text-white rounded-xl p-2 z-30 shadow-2xl">
-                      <div className="px-3 py-2 text-xs uppercase text-stone-400">Dev / Investor view</div>
+                      <div className="px-3 py-2 text-xs text-stone-400 border-b border-stone-800 mb-1">
+                        <div className="font-medium text-white">@{user.username || user.email.split('@')[0]}</div>
+                        <div className="text-stone-500">{user.email}</div>
+                      </div>
+                      <button onClick={() => { setActiveTab('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
                       <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
+                      <div className="border-t border-stone-800 mt-1 pt-1">
+                        <button onClick={() => { handleLogout(); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left text-rose-400"><LogOut className="w-4 h-4" /> Sign out</button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1154,7 +1475,7 @@ export default function Clarion() {
         {activeTab === 'profile' && (
           <div>
             <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-5">My profile</h1>
-            <MyProfileTab balance={balance} positions={positions} markets={markets} demoUser={user} />
+            <MyProfileTab balance={balance} positions={positions} markets={markets} demoUser={user} userProfile={userProfile} setUserProfile={setUserProfile} onLogout={handleLogout} />
           </div>
         )}
 
