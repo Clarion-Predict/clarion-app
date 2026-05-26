@@ -492,10 +492,16 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
   const totalPledged = positions.reduce((s, p) => s + (p.invested * 0.01), 0);
   const username = demoUser.username || demoUser.email?.split('@')[0] || 'you';
 
-  const saveBio = () => {
-    setUserProfile(prev => ({ ...prev, bio }));
-    setEditingBio(false);
-  };
+  const saveBio = async () => {
+  setUserProfile(prev => ({ ...prev, bio }));
+  setEditingBio(false);
+  if (demoUser?.id) {
+    await supabase
+      .from('profiles')
+      .update({ bio })
+      .eq('user_id', demoUser.id);
+  }
+};
 
   return (
     <div className="max-w-2xl">
@@ -545,7 +551,22 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
         <p className="text-xs text-stone-500 mb-4">1% of every trade you place goes to your chosen cause.</p>
         <div className="space-y-2 mb-4">
           {causeOptions.map(c => (
-            <button key={c.id} onClick={() => { setSelectedCause(c.id); setUserProfile(p => ({ ...p, cause: c.id })); }} className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50'}`}>
+          <button
+            key={c.id}
+            onClick={() => {
+              setSelectedCause(c.id);
+              setUserProfile(p => ({ ...p, cause: c.id }));
+              if (demoUser?.id) {
+                supabase
+                  .from('profiles')
+                  .update({ cause: c.id })
+                  .eq('user_id', demoUser.id)
+                  .then(() => {});
+
+              }
+            }}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${selectedCause === c.id ? 'border-amber-300 bg-amber-50' : 'border-stone-100 bg-stone-50'}`}
+          >            
               <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selectedCause === c.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'}`}>
                 {selectedCause === c.id && <Check className="w-2.5 h-2.5 text-white" style={{marginTop:'1px'}} />}
               </div>
@@ -1133,6 +1154,10 @@ export default function Clarion() {
         bio: '',
         cause: '',
       });
+      await supabase.from('balances').insert({
+        user_id: data.user.id,
+        balance: 50,
+      });
       setAuthUser({ id: data.user.id, email: userData.email, username: userData.username });
       setAuthScreen(null);
       setOnboarding(true);
@@ -1144,8 +1169,47 @@ export default function Clarion() {
     });
     if (error) { alert(error.message); return; }
     if (data.user) {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', data.user.id).single();
-      setAuthUser({ id: data.user.id, email: userData.email, username: profile?.username || userData.email.split('@')[0], returning: true });
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .single();
+      const { data: balanceRow } = await supabase
+        .from('balances')
+        .select('balance')
+        .eq('user_id', data.user.id)
+        .single();
+      const { data: positionRows } = await supabase
+        .from('positions')
+        .select('*')
+        .eq('user_id', data.user.id);
+      setAuthUser({
+        id: data.user.id,
+        email: userData.email,
+        username: profile?.username || userData.email.split('@')[0],
+        returning: true,
+      });
+      if (profile) {
+        setUserProfile({
+          bio: profile.bio || '',
+          cause: profile.cause || '',
+        });
+      }
+      if (balanceRow) {
+        setBalance(balanceRow.balance);
+      }
+      if (positionRows) {
+        setPositions(positionRows.map(p => ({
+          id: p.id,
+          marketId: p.market_id,
+          market: p.market,
+          category: p.category,
+          side: p.side,
+          shares: p.shares,
+          avgPrice: p.avg_price,
+          invested: p.invested,
+        })));
+      }
       setAuthScreen(null);
     }
   }
@@ -1155,15 +1219,13 @@ export default function Clarion() {
   setUserProfile(profileData);
   setOnboarding(false);
   if (authUser) {
-    const { error } = await supabase
+    await supabase
       .from('profiles')
       .update({
         bio: profileData.bio,
         cause: profileData.cause,
       })
       .eq('user_id', authUser.id);
-    console.log('update error:', error);
-    console.log('authUser.id:', authUser.id);
   }
 };
 
@@ -1209,21 +1271,80 @@ export default function Clarion() {
     setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: !u.following } : u));
   };
 
-  const handleTrade = () => {
-    setShowConfirm(true);
-    const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
-    const cost = (tradeAmount * price) / 100;
-    const pledgeAmount = cost * 0.01;
-    setBalance(b => Math.max(0, b - cost));
-    const shares = Math.floor((tradeAmount / price) * 100);
-    setPositions(p => [...p, { id: 'p' + Date.now(), marketId: selectedMarket.id, market: selectedMarket.question, category: selectedMarket.category, side: tradeSide, shares, avgPrice: price, invested: cost }]);
-    setLedger(prev => [
-      { id: 'le_t' + Date.now(), userId: 'usr_demo', type: 'trade', amount: -cost, ref: 'trd_demo', ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: tradeSide.toUpperCase() + ' practice trade' },
-      { id: 'le_p' + Date.now(), userId: 'usr_demo', type: 'pledge', amount: -pledgeAmount, ref: 'trd_demo', ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: '1 percent pledge' },
-      ...prev,
-    ]);
-    setTimeout(() => { setShowConfirm(false); setTradeSide(null); setSelectedMarket(null); }, 1800);
+  const handleTrade = async () => {
+  setShowConfirm(true);
+  const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
+  const cost = (tradeAmount * price) / 100;
+  const pledgeAmount = cost * 0.01;
+  const newBalance = Math.max(0, balance - cost);
+  const shares = Math.floor((tradeAmount / price) * 100);
+
+  setBalance(newBalance);
+
+  const newPosition = {
+    id: 'p' + Date.now(),
+    marketId: selectedMarket.id,
+    market: selectedMarket.question,
+    category: selectedMarket.category,
+    side: tradeSide,
+    shares,
+    avgPrice: price,
+    invested: cost,
   };
+  setPositions(p => [...p, newPosition]);
+
+  if (authUser) {
+    // Save balance
+    await supabase
+      .from('balances')
+      .update({ balance: newBalance })
+      .eq('user_id', authUser.id);
+
+    // Save position
+// Save position
+    const { data: savedPosition, error: positionError } = await supabase
+      .from('positions')
+      .insert({
+        user_id: authUser.id,
+        market_id: selectedMarket.id,
+        market: selectedMarket.question,
+        category: selectedMarket.category,
+        side: tradeSide,
+        shares,
+        avg_price: price,
+        invested: cost,
+      })
+      .select()
+      .single();
+
+    console.log('position save error:', positionError);
+    console.log('saved position:', savedPosition);
+
+    // Save ledger entries
+    await supabase.from('ledger').insert([
+      {
+        user_id: authUser.id,
+        type: 'trade',
+        amount: -cost,
+        ref: 'trd_' + Date.now(),
+        description: tradeSide.toUpperCase() + ' practice trade — ' + selectedMarket.question,
+      },
+      {
+        user_id: authUser.id,
+        type: 'pledge',
+        amount: -pledgeAmount,
+        ref: 'trd_' + Date.now(),
+        description: '1% pledge',
+      },
+    ]);
+  }
+
+  setTimeout(() => {
+    setShowConfirm(false);
+    setTradeSide(null);
+    setSelectedMarket(null);
+  }, 1800);
+};
 
   // Profile view
   if (viewingProfile) {
