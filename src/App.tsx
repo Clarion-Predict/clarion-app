@@ -1140,6 +1140,57 @@ export default function Clarion() {
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
 
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+  supabase.auth.getSession().then(async ({ data: { session } }) => {
+    if (session?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+      const { data: balanceRow } = await supabase
+        .from('balances')
+        .select('balance')
+        .eq('user_id', session.user.id)
+        .single();
+      const { data: positionRows } = await supabase
+        .from('positions')
+        .select('*')
+        .eq('user_id', session.user.id);
+      setAuthUser({
+        id: session.user.id,
+        email: session.user.email,
+        username: profile?.username || session.user.email.split('@')[0],
+        returning: true,
+      });
+      if (profile) {
+        setUserProfile({
+          bio: profile.bio || '',
+          cause: profile.cause || '',
+        });
+      }
+      if (balanceRow) {
+        setBalance(balanceRow.balance);
+      }
+      if (positionRows) {
+        setPositions(positionRows.map(p => ({
+          id: p.id,
+          marketId: p.market_id,
+          market: p.market,
+          category: p.category,
+          side: p.side,
+          shares: p.shares,
+          avgPrice: p.avg_price,
+          invested: p.invested,
+        })));
+      }
+    }
+    setAuthLoading(false);
+  });
+}, []);
+
   const handleAuth = async (userData) => {
   if (userData.mode === 'signup') {
     const { data, error } = await supabase.auth.signUp({
@@ -1239,6 +1290,17 @@ export default function Clarion() {
   setBalance(50);
 };
 
+if (authLoading) {
+  return (
+    <div className="min-h-screen bg-amber-50/40 flex items-center justify-center">
+      <div className="flex items-center gap-3">
+        <Logo size={32} />
+        <span className="text-xl font-serif text-stone-900">Clarion</span>
+      </div>
+    </div>
+  );
+}
+
   // Show landing page if not logged in
   if (!authUser) {
     return (
@@ -1317,8 +1379,6 @@ export default function Clarion() {
       .select()
       .single();
 
-    console.log('position save error:', positionError);
-    console.log('saved position:', savedPosition);
 
     // Save ledger entries
     await supabase.from('ledger').insert([
