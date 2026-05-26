@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { supabase } from './supabase';
 import { Search, TrendingUp, Users, MessageCircle, Bookmark, Share2, ChevronRight, ArrowLeft, Sparkles, Heart, Briefcase, Vote, Tv, ShoppingBag, Activity, X, Check, Mail, Shield, CreditCard, AlertCircle, LogOut, Plus, Bell, TrendingDown, Zap, Globe, Copy, Award, Trophy, Star, Flame, Settings, Database, FileText, Terminal, Play, Pause, RefreshCw, FlaskConical, BookOpen, Layers, ArrowRight, DollarSign, Edit3, Gift, UserCircle, BarChart2, Eye, EyeOff, AtSign, Lock, Unlock, ChevronUp, ChevronDown, Medal } from 'lucide-react';
 
 const Beaker = FlaskConical;
@@ -967,17 +968,14 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    setError('');
-    if (!email.includes('@')) { setError('Please enter a valid email.'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (view === 'signup' && !username.trim()) { setError('Please choose a username.'); return; }
-    setLoading(true);
-    // Simulate async — replace with real Supabase call
-    setTimeout(() => {
-      setLoading(false);
-      onAuth({ email, username: username || email.split('@')[0], id: 'usr_' + Date.now() });
-    }, 800);
-  };
+  setError('');
+  if (!email.includes('@')) { setError('Please enter a valid email.'); return; }
+  if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+  if (view === 'signup' && !username.trim()) { setError('Please choose a username.'); return; }
+  setLoading(true);
+  onAuth({ mode: view, email, password, username });
+  setLoading(false);
+};
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1121,25 +1119,63 @@ export default function Clarion() {
   const [showDevMenu, setShowDevMenu] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
 
-  const handleAuth = (userData) => {
-    setAuthUser(userData);
-    setAuthScreen(null);
-    if (!userData.returning) setOnboarding(true);
-  };
+  const handleAuth = async (userData) => {
+  if (userData.mode === 'signup') {
+    const { data, error } = await supabase.auth.signUp({
+      email: userData.email,
+      password: userData.password,
+    });
+    if (error) { alert(error.message); return; }
+    if (data.user) {
+      await supabase.from('profiles').insert({
+        user_id: data.user.id,
+        username: userData.username,
+        bio: '',
+        cause: '',
+      });
+      setAuthUser({ id: data.user.id, email: userData.email, username: userData.username });
+      setAuthScreen(null);
+      setOnboarding(true);
+    }
+  } else {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: userData.email,
+      password: userData.password,
+    });
+    if (error) { alert(error.message); return; }
+    if (data.user) {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', data.user.id).single();
+      setAuthUser({ id: data.user.id, email: userData.email, username: profile?.username || userData.email.split('@')[0], returning: true });
+      setAuthScreen(null);
+    }
+  }
+};
 
-  const handleOnboardingComplete = (profileData) => {
-    setUserProfile(profileData);
-    setOnboarding(false);
-  };
+  const handleOnboardingComplete = async (profileData) => {
+  setUserProfile(profileData);
+  setOnboarding(false);
+  if (authUser) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        bio: profileData.bio,
+        cause: profileData.cause,
+      })
+      .eq('user_id', authUser.id);
+    console.log('update error:', error);
+    console.log('authUser.id:', authUser.id);
+  }
+};
 
-  const handleLogout = () => {
-    setAuthUser(null);
-    setActiveTab('home');
-    setSelectedMarket(null);
-    setTradeSide(null);
-    setPositions([]);
-    setBalance(50);
-  };
+  const handleLogout = async () => {
+  await supabase.auth.signOut();
+  setAuthUser(null);
+  setActiveTab('home');
+  setSelectedMarket(null);
+  setTradeSide(null);
+  setPositions([]);
+  setBalance(50);
+};
 
   // Show landing page if not logged in
   if (!authUser) {
