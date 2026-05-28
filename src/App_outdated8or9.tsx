@@ -31,8 +31,8 @@ const causeOptions = [
   { id: 'reproductive', name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
 ];
 
-const initialMarkets = [
-  // ===== SPOTLIGHT (hot right now) =====
+const initialMarkets = [];
+const _unusedMarkets = [
   { id: 1, category: 'spotlight', show: 'Love Island USA', question: "Will Love Island USA have a dramatic recoupling in its premiere week?", context: "Love Island USA returns June 2 on Peacock. Season 7 cast has been announced and fans are already debating alliances.", yes: 78, no: 22, volume: '$12.4k', traders: 487, comments: 134, trending: true, ends: 'Jun 8, 2026', status: 'open' },
   { id: 2, category: 'spotlight', show: 'The Traitors US', question: "Will The Traitors US have a double elimination this week?", context: "Six players remain. The roundtable has been getting more chaotic each episode as alliances fracture.", yes: 54, no: 46, volume: '$9.7k', traders: 381, comments: 112, trending: true, ends: 'Jun 1, 2026', status: 'open' },
   { id: 3, category: 'spotlight', show: 'Calabasas Confidential', question: "Will Calabasas Confidential beat its premiere night viewership expectations?", context: "Premieres May 29. Early buzz has been strong and the Kardashian adjacent cast is drawing attention.", yes: 61, no: 39, volume: '$6.2k', traders: 244, comments: 78, trending: true, ends: 'Jun 1, 2026', status: 'open' },
@@ -69,7 +69,7 @@ const initialMarkets = [
   { id: 26, category: 'lifestyle', show: 'Selling Sunset', question: "Will Selling Sunset introduce a new cast member in the back half of Season 8?", context: "The show has consistently added cast mid-season. Jason Oppenheim has hinted at new agents joining.", yes: 68, no: 32, volume: '$5.8k', traders: 229, comments: 69, ends: 'Jul 15, 2026', status: 'open' },
   { id: 27, category: 'lifestyle', show: 'Queer Eye', question: "Will Queer Eye's final season receive an Emmy nomination?", context: "The final season was announced recently. The show has received 7 Emmy wins across its run.", yes: 59, no: 41, volume: '$4.4k', traders: 174, comments: 52, ends: 'Jul 31, 2026', status: 'open' },
   { id: 28, category: 'lifestyle', show: 'Jersey Shore', question: "Will Jersey Shore Family Vacation film another international trip this season?", context: "The cast has filmed in Italy and the Bahamas before. Producers have been teasing a new location.", yes: 53, no: 47, volume: '$3.9k', traders: 155, comments: 41, ends: 'Aug 1, 2026', status: 'open' },
-];
+]; // end _unusedMarkets
 
 // ========== MOCK COMMUNITY USERS ==========
 const initialCommunityUsers = [
@@ -625,7 +625,7 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Practice balance', value: '$' + balance.toFixed(2) },
-              { label: 'Open positions', value: positions.length },
+              { label: 'Accuracy', value: userProfile?.totalResolved > 0 ? userProfile.accuracy + '%' : '—' },
               { label: 'Total pledged', value: '$' + totalPledged.toFixed(2) },
             ].map((s, i) => (
               <div key={i} className="p-3 rounded-2xl bg-stone-50 text-center">
@@ -702,33 +702,159 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
 };
 
 // ========== ADMIN PANEL ==========
-const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist }) => {
+const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist, authUser, setBalance, setPositions, loadLeaderboard }) => {
   const [adminTab, setAdminTab] = useState('overview');
   const [resolvingMarket, setResolvingMarket] = useState(null);
 
-  const resolveMarket = (marketId, outcome) => {
+  const resolveMarket = async (marketId, outcome) => {
+    // 1. Mark market as resolved in Supabase
+    const { error: marketError } = await supabase.from('markets').update({ status: 'resolved', outcome }).eq('id', marketId);
+    if (marketError) { console.error('Market update error:', marketError); }
     setMarkets(prev => prev.map(m => m.id === marketId ? { ...m, status: 'resolved', outcome } : m));
-    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved by operator' }, ...prev]);
+
+    // 2. Find all positions on this market from Supabase
+    const { data: affectedPositions, error: posError } = await supabase
+      .from('positions')
+      .select('*')
+      .eq('market_id', marketId)
+      .eq('resolved', false);
+
+    console.log('affectedPositions:', affectedPositions, 'error:', posError);
+
+    if (!affectedPositions || affectedPositions.length === 0) {
+      console.log('No positions found for market:', marketId);
+      setResolvingMarket(null);
+      return;
+    }
+
+    // 3. Process each position
+    for (const pos of affectedPositions) {
+      const won = pos.side === outcome;
+      const payout = won ? pos.shares : 0;
+
+      // Update position
+      const { error: posUpdateError } = await supabase.from('positions').update({
+        resolved: true,
+        won,
+        payout,
+      }).eq('id', pos.id);
+      if (posUpdateError) console.error('Position update error:', posUpdateError);
+
+      // Update balance for winner
+      if (won && payout > 0) {
+        const { data: balRow } = await supabase
+          .from('balances')
+          .select('balance')
+          .eq('user_id', pos.user_id)
+          .single();
+        if (balRow) {
+          const { error: balError } = await supabase.from('balances').update({
+            balance: balRow.balance + payout,
+          }).eq('user_id', pos.user_id);
+          if (balError) console.error('Balance update error:', balError);
+        }
+        if (pos.user_id === authUser?.id) {
+          setBalance(prev => prev + payout);
+        }
+      }
+
+      // Recalculate accuracy — query existing resolved, then add current one
+      const { data: previousResolved } = await supabase
+        .from('positions')
+        .select('won')
+        .eq('user_id', pos.user_id)
+        .eq('resolved', true)
+        .neq('id', pos.id); // exclude current position since it was just updated
+
+      const previousList = previousResolved || [];
+      // Add current position result
+      const allResolvedList = [...previousList, { won }];
+      const totalResolved = allResolvedList.length;
+      const wins = allResolvedList.filter(p => p.won).length;
+      const accuracy = totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
+      const impactScore = Math.round(wins * 10);
+
+      console.log('Updating stats for', pos.user_id, '— wins:', wins, 'total:', totalResolved, 'accuracy:', accuracy);
+
+      const { error: statsError } = await supabase.rpc('update_user_stats', {
+        p_user_id: pos.user_id,
+        p_wins: wins,
+        p_total_resolved: totalResolved,
+        p_accuracy: accuracy,
+        p_impact_score: impactScore,
+      });
+      if (statsError) console.error('Stats update error:', statsError);
+    }
+
+    // 4. Recalculate leaderboard ranks
+    const { data: allProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, accuracy, total_resolved')
+      .order('accuracy', { ascending: false });
+
+    console.log('allProfiles for ranking:', allProfiles, 'error:', profilesError);
+
+    if (allProfiles) {
+      for (let i = 0; i < allProfiles.length; i++) {
+        const { error: rankError } = await supabase.rpc('update_leaderboard_rank', {
+          p_user_id: allProfiles[i].user_id,
+          p_rank: i + 1,
+        });
+        if (rankError) console.error('Rank update error:', rankError);
+      }
+    }
+
+    // 5. Reload leaderboard
+    await loadLeaderboard();
+
+    // 6. Update positions in local state
+    setPositions(prev => prev.map(p =>
+      p.marketId === marketId
+        ? { ...p, resolved: true, won: p.side === outcome, payout: p.side === outcome ? p.shares : 0 }
+        : p
+    ));
+
+    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved: ' + outcome.toUpperCase() }, ...prev]);
     setResolvingMarket(null);
   };
 
   const approveSubmission = async (subId) => {
     const sub = submissions.find(s => s.id === subId);
     if (!sub) return;
-    const newMarket = {
-      id: Math.max.apply(null, markets.map(m => m.id)) + 1,
+    // Save to Supabase markets table
+    const { data: newMarketRow, error } = await supabase.from('markets').insert({
       category: sub.category,
       show: sub.show || '',
       question: sub.question,
       context: sub.context || '',
-      yes: 50, no: 50,
+      yes: 50,
+      no: 50,
       volume: '$0',
       traders: 0,
       comments: 0,
       ends: sub.endsHint || 'TBD',
       status: 'open',
-    };
-    setMarkets(prev => [...prev, newMarket]);
+      trending: false,
+    }).select().single();
+    if (error) { alert('Failed to save market: ' + error.message); return; }
+    // Add to local state
+    if (newMarketRow) {
+      setMarkets(prev => [...prev, {
+        id: newMarketRow.id,
+        category: newMarketRow.category,
+        show: newMarketRow.show,
+        question: newMarketRow.question,
+        context: newMarketRow.context,
+        yes: newMarketRow.yes,
+        no: newMarketRow.no,
+        volume: newMarketRow.volume,
+        traders: newMarketRow.traders,
+        comments: newMarketRow.comments,
+        trending: newMarketRow.trending,
+        ends: newMarketRow.ends,
+        status: newMarketRow.status,
+      }]);
+    }
     setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'approved' } : s));
     if (sub.supabaseId) {
       await supabase.from('submissions').update({ status: 'approved' }).eq('id', sub.supabaseId);
@@ -1181,7 +1307,7 @@ export default function Clarion() {
   const [authUser, setAuthUser] = useState(null); // null = logged out
   const [authScreen, setAuthScreen] = useState(null); // 'login' | 'signup' | null
   const [onboarding, setOnboarding] = useState(false);
-  const [userProfile, setUserProfile] = useState({ bio: '', cause: '' });
+  const [userProfile, setUserProfile] = useState<{ bio: string; cause: string; accuracy: number; totalResolved: number }>({ bio: '', cause: '', accuracy: 0, totalResolved: 0 });
 
   const [markets, setMarkets] = useState(initialMarkets);
   const [ledger, setLedger] = useState(initialLedger);
@@ -1195,7 +1321,15 @@ export default function Clarion() {
   const [tradeSide, setTradeSide] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    const validTabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+    return validTabs.includes(hash) ? hash : 'home';
+  });
+  const navigateTo = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab === 'home' ? '' : tab;
+  };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -1208,6 +1342,27 @@ export default function Clarion() {
   const [showSuggestMarket, setShowSuggestMarket] = useState(false);
 
   useEffect(() => {
+  // Load markets from Supabase for everyone (not just logged-in users)
+  supabase.from('markets').select('*').eq('status', 'open').then(({ data: marketRows }) => {
+    if (marketRows && marketRows.length > 0) {
+      setMarkets(marketRows.map(m => ({
+        id: m.id,
+        category: m.category,
+        show: m.show,
+        question: m.question,
+        context: m.context,
+        yes: m.yes,
+        no: m.no,
+        volume: m.volume,
+        traders: m.traders,
+        comments: m.comments,
+        trending: m.trending,
+        ends: m.ends,
+        status: m.status,
+      })));
+    }
+  });
+
   supabase.auth.getSession().then(async ({ data: { session } }) => {
     if (session?.user) {
       const { data: profile } = await supabase
@@ -1222,7 +1377,7 @@ export default function Clarion() {
         .single();
       const { data: positionRows } = await supabase
         .from('positions')
-        .select('*')
+        .select('id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout')
         .eq('user_id', session.user.id);
       setAuthUser({
         id: session.user.id,
@@ -1234,6 +1389,8 @@ export default function Clarion() {
         setUserProfile({
           bio: profile.bio || '',
           cause: profile.cause || '',
+          accuracy: profile.accuracy || 0,
+          totalResolved: profile.total_resolved || 0,
         });
       }
       if (balanceRow) {
@@ -1249,6 +1406,9 @@ export default function Clarion() {
             shares: p.shares,
             avgPrice: p.avg_price,
             invested: p.invested,
+            resolved: p.resolved || false,
+            won: p.won,
+            payout: p.payout || 0,
           })));
         }
         const { data: adminRow } = await supabase
@@ -1283,9 +1443,10 @@ export default function Clarion() {
           }
         }
       }
+      await loadLeaderboard();
       setAuthLoading(false);
     });
-  }, []); 
+  }, []);
 
   const handleAuth = async (userData) => {
   if (userData.mode === 'signup') {
@@ -1328,7 +1489,7 @@ export default function Clarion() {
         .single();
       const { data: positionRows } = await supabase
         .from('positions')
-        .select('*')
+        .select('id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout')
         .eq('user_id', data.user.id);
       setAuthUser({
         id: data.user.id,
@@ -1340,6 +1501,8 @@ export default function Clarion() {
         setUserProfile({
           bio: profile.bio || '',
           cause: profile.cause || '',
+          accuracy: profile.accuracy || 0,
+          totalResolved: profile.total_resolved || 0,
         });
       }
       if (balanceRow) {
@@ -1355,6 +1518,9 @@ export default function Clarion() {
           shares: p.shares,
           avgPrice: p.avg_price,
           invested: p.invested,
+          resolved: p.resolved || false,
+          won: p.won,
+          payout: p.payout || 0,
         })));
       }
       const { data: adminRow } = await supabase
@@ -1381,6 +1547,40 @@ export default function Clarion() {
       .eq('user_id', authUser.id);
   }
 };
+
+  const loadLeaderboard = async () => {
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, leaderboard_rank')
+      .order('leaderboard_rank', { ascending: true });
+    if (profileRows && profileRows.length > 0) {
+      // Get total trade counts for all users
+      const { data: tradeCounts } = await supabase
+        .from('positions')
+        .select('user_id');
+      const countMap = {};
+      if (tradeCounts) {
+        tradeCounts.forEach(p => {
+          countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
+        });
+      }
+      setCommunityUsers(profileRows
+        .filter(p => p.username)
+        .map((p, i) => ({
+          id: p.user_id,
+          username: p.username,
+          name: p.username,
+          accuracy: p.accuracy || 0,
+          totalTrades: countMap[p.user_id] || 0,
+          impactScore: p.impact_score || 0,
+          leaderboardRank: p.leaderboard_rank || i + 1,
+          following: false,
+          cause: p.cause || '',
+          causePrivate: false,
+          positions: [],
+        })));
+    }
+  };
 
   const handleLogout = async () => {
   await supabase.auth.signOut();
@@ -1410,7 +1610,7 @@ if (authLoading) {
         <LandingPage
           onLogin={() => setAuthScreen('login')}
           onSignup={() => setAuthScreen('signup')}
-          markets={initialMarkets}
+          markets={markets}
           categories={categories}
         />
         {authScreen && (
@@ -1622,7 +1822,7 @@ if (authLoading) {
       </div>
 
       {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} waitlist={waitlist} setWaitlist={setWaitlist} />}
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} authUser={authUser} setBalance={setBalance} setPositions={setPositions} loadLeaderboard={loadLeaderboard} />}
       {showSuggestMarket && <SuggestMarketModal onClose={() => setShowSuggestMarket(false)} authUser={authUser} onSubmitted={() => setShowSuggestMarket(false)} />}
 
       <header className="bg-white/80 backdrop-blur border-b border-amber-100 sticky top-0 z-10">
@@ -1649,7 +1849,7 @@ if (authLoading) {
                         <div className="font-medium text-white">@{user.username || user.email.split('@')[0]}</div>
                         <div className="text-stone-500">{user.email}</div>
                       </div>
-                      <button onClick={() => { setActiveTab('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
+                      <button onClick={() => { navigateTo('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
 {isAdmin && (
   <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
 )}                      <div className="border-t border-stone-800 mt-1 pt-1">
@@ -1663,7 +1863,7 @@ if (authLoading) {
           </div>
           <div className="flex gap-1 text-sm overflow-x-auto pb-0.5">
             {tabs.map(t => (
-              <button key={t} onClick={() => setActiveTab(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
+              <button key={t} onClick={() => navigateTo(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
                 {t === 'feed' && <Users className="w-3 h-3" />}
                 {t === 'leaderboard' && <Trophy className="w-3 h-3" />}
                 {t === 'profile' && <UserCircle className="w-3 h-3" />}
@@ -1693,7 +1893,7 @@ if (authLoading) {
                 <div className="flex-1">
                   <h3 className="text-base font-serif text-stone-900 mb-1">The Clarion Pledge</h3>
                   <p className="text-sm text-stone-700 mb-3 leading-relaxed">1 percent of every trade supports women's health, mental health, economic empowerment, and reproductive rights. Community total: <span className="font-medium text-stone-900">${communityImpact.totalGiven.toLocaleString()}</span>.</p>
-                  <button onClick={() => setActiveTab('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
+                  <button onClick={() => navigateTo('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
                 </div>
               </div>
             </div>
@@ -1773,7 +1973,7 @@ if (authLoading) {
                 <h1 className="text-xl md:text-2xl font-serif text-stone-900">Activity feed</h1>
                 <p className="text-sm text-stone-500">People you follow · 280 char comments</p>
               </div>
-              <button onClick={() => setActiveTab('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
+              <button onClick={() => navigateTo('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
             </div>
             <ActivityFeed communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} />
           </div>
@@ -1792,14 +1992,21 @@ if (authLoading) {
         {activeTab === 'positions' && (
           <div>
             <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-1">Your positions</h1>
-            <p className="text-sm text-stone-500 mb-4">{positions.length} open</p>
+            <p className="text-sm text-stone-500 mb-4">{positions.filter(p => !p.resolved).length} open · {positions.filter(p => p.resolved).length} resolved</p>
             {positions.length > 0 ? (
               <div className="space-y-3">
                 {positions.map(p => (
-                  <div key={p.id} className="p-4 md:p-5 rounded-2xl bg-white border border-stone-100">
+                  <div key={p.id} className={`p-4 md:p-5 rounded-2xl border ${p.resolved ? (p.won ? 'bg-emerald-50 border-emerald-100' : 'bg-stone-50 border-stone-100') : 'bg-white border-stone-100'}`}>
                     <h3 className="text-sm font-serif text-stone-900 mb-2">{p.market}</h3>
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                        {p.resolved && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                            {p.won ? `+$${p.payout} won` : 'Lost'}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-sm text-stone-500">{p.shares} shares at {p.avgPrice} cents</span>
                     </div>
                   </div>
@@ -1808,7 +2015,7 @@ if (authLoading) {
             ) : (
               <div className="bg-white rounded-3xl p-8 border border-stone-100 text-center">
                 <h3 className="text-lg font-serif text-stone-900 mb-2">No positions yet</h3>
-                <button onClick={() => setActiveTab('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
+                <button onClick={() => navigateTo('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
               </div>
             )}
           </div>

@@ -625,7 +625,7 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Practice balance', value: '$' + balance.toFixed(2) },
-              { label: 'Open positions', value: positions.length },
+              { label: 'Accuracy', value: userProfile?.totalResolved > 0 ? userProfile.accuracy + '%' : '—' },
               { label: 'Total pledged', value: '$' + totalPledged.toFixed(2) },
             ].map((s, i) => (
               <div key={i} className="p-3 rounded-2xl bg-stone-50 text-center">
@@ -702,13 +702,119 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
 };
 
 // ========== ADMIN PANEL ==========
-const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist }) => {
+const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist, authUser, setBalance, setPositions, loadLeaderboard }) => {
   const [adminTab, setAdminTab] = useState('overview');
   const [resolvingMarket, setResolvingMarket] = useState(null);
 
-  const resolveMarket = (marketId, outcome) => {
+  const resolveMarket = async (marketId, outcome) => {
+    // 1. Mark market as resolved in Supabase
+    const { error: marketError } = await supabase.from('markets').update({ status: 'resolved', outcome }).eq('id', marketId);
+    if (marketError) { console.error('Market update error:', marketError); }
     setMarkets(prev => prev.map(m => m.id === marketId ? { ...m, status: 'resolved', outcome } : m));
-    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved by operator' }, ...prev]);
+
+    // 2. Find all positions on this market from Supabase
+    const { data: affectedPositions, error: posError } = await supabase
+      .from('positions')
+      .select('*')
+      .eq('market_id', marketId)
+      .eq('resolved', false);
+
+    console.log('affectedPositions:', affectedPositions, 'error:', posError);
+
+    if (!affectedPositions || affectedPositions.length === 0) {
+      console.log('No positions found for market:', marketId);
+      setResolvingMarket(null);
+      return;
+    }
+
+    // 3. Process each position
+    for (const pos of affectedPositions) {
+      const won = pos.side === outcome;
+      const payout = won ? pos.shares : 0;
+
+      // Update position
+      const { error: posUpdateError } = await supabase.from('positions').update({
+        resolved: true,
+        won,
+        payout,
+      }).eq('id', pos.id);
+      if (posUpdateError) console.error('Position update error:', posUpdateError);
+
+      // Update balance for winner
+      if (won && payout > 0) {
+        const { data: balRow } = await supabase
+          .from('balances')
+          .select('balance')
+          .eq('user_id', pos.user_id)
+          .single();
+        if (balRow) {
+          const { error: balError } = await supabase.from('balances').update({
+            balance: balRow.balance + payout,
+          }).eq('user_id', pos.user_id);
+          if (balError) console.error('Balance update error:', balError);
+        }
+        if (pos.user_id === authUser?.id) {
+          setBalance(prev => prev + payout);
+        }
+      }
+
+      // Recalculate accuracy — query existing resolved, then add current one
+      const { data: previousResolved } = await supabase
+        .from('positions')
+        .select('won')
+        .eq('user_id', pos.user_id)
+        .eq('resolved', true)
+        .neq('id', pos.id); // exclude current position since it was just updated
+
+      const previousList = previousResolved || [];
+      // Add current position result
+      const allResolvedList = [...previousList, { won }];
+      const totalResolved = allResolvedList.length;
+      const wins = allResolvedList.filter(p => p.won).length;
+      const accuracy = totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
+      const impactScore = Math.round(wins * 10);
+
+      console.log('Updating stats for', pos.user_id, '— wins:', wins, 'total:', totalResolved, 'accuracy:', accuracy);
+
+      const { error: statsError } = await supabase.rpc('update_user_stats', {
+        p_user_id: pos.user_id,
+        p_wins: wins,
+        p_total_resolved: totalResolved,
+        p_accuracy: accuracy,
+        p_impact_score: impactScore,
+      });
+      if (statsError) console.error('Stats update error:', statsError);
+    }
+
+    // 4. Recalculate leaderboard ranks
+    const { data: allProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, accuracy, total_resolved')
+      .order('accuracy', { ascending: false });
+
+    console.log('allProfiles for ranking:', allProfiles, 'error:', profilesError);
+
+    if (allProfiles) {
+      for (let i = 0; i < allProfiles.length; i++) {
+        const { error: rankError } = await supabase.rpc('update_leaderboard_rank', {
+          p_user_id: allProfiles[i].user_id,
+          p_rank: i + 1,
+        });
+        if (rankError) console.error('Rank update error:', rankError);
+      }
+    }
+
+    // 5. Reload leaderboard
+    await loadLeaderboard();
+
+    // 6. Update positions in local state
+    setPositions(prev => prev.map(p =>
+      String(p.marketId) === String(marketId)
+        ? { ...p, resolved: true, won: p.side === outcome, payout: p.side === outcome ? p.shares : 0 }
+        : p
+    ));
+
+    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved: ' + outcome.toUpperCase() }, ...prev]);
     setResolvingMarket(null);
   };
 
@@ -1201,7 +1307,7 @@ export default function Clarion() {
   const [authUser, setAuthUser] = useState(null); // null = logged out
   const [authScreen, setAuthScreen] = useState(null); // 'login' | 'signup' | null
   const [onboarding, setOnboarding] = useState(false);
-  const [userProfile, setUserProfile] = useState({ bio: '', cause: '' });
+  const [userProfile, setUserProfile] = useState<{ bio: string; cause: string; accuracy: number; totalResolved: number }>({ bio: '', cause: '', accuracy: 0, totalResolved: 0 });
 
   const [markets, setMarkets] = useState(initialMarkets);
   const [ledger, setLedger] = useState(initialLedger);
@@ -1271,7 +1377,7 @@ export default function Clarion() {
         .single();
       const { data: positionRows } = await supabase
         .from('positions')
-        .select('*')
+        .select('id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout')
         .eq('user_id', session.user.id);
       setAuthUser({
         id: session.user.id,
@@ -1283,12 +1389,15 @@ export default function Clarion() {
         setUserProfile({
           bio: profile.bio || '',
           cause: profile.cause || '',
+          accuracy: profile.accuracy || 0,
+          totalResolved: profile.total_resolved || 0,
         });
       }
       if (balanceRow) {
         setBalance(balanceRow.balance);
       }
       if (positionRows) {
+          console.log('positions from supabase:', positionRows.map(p => ({ id: p.id, market: p.market, resolved: p.resolved, won: p.won, payout: p.payout })));
           setPositions(positionRows.map(p => ({
             id: p.id,
             marketId: p.market_id,
@@ -1298,6 +1407,9 @@ export default function Clarion() {
             shares: p.shares,
             avgPrice: p.avg_price,
             invested: p.invested,
+            resolved: p.resolved === true,
+            won: p.won === true,
+            payout: p.payout || 0,
           })));
         }
         const { data: adminRow } = await supabase
@@ -1332,9 +1444,10 @@ export default function Clarion() {
           }
         }
       }
+      await loadLeaderboard();
       setAuthLoading(false);
     });
-  }, []); 
+  }, []);
 
   const handleAuth = async (userData) => {
   if (userData.mode === 'signup') {
@@ -1377,7 +1490,7 @@ export default function Clarion() {
         .single();
       const { data: positionRows } = await supabase
         .from('positions')
-        .select('*')
+        .select('id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout')
         .eq('user_id', data.user.id);
       setAuthUser({
         id: data.user.id,
@@ -1389,6 +1502,8 @@ export default function Clarion() {
         setUserProfile({
           bio: profile.bio || '',
           cause: profile.cause || '',
+          accuracy: profile.accuracy || 0,
+          totalResolved: profile.total_resolved || 0,
         });
       }
       if (balanceRow) {
@@ -1404,6 +1519,9 @@ export default function Clarion() {
           shares: p.shares,
           avgPrice: p.avg_price,
           invested: p.invested,
+          resolved: p.resolved === true,
+          won: p.won === true,
+          payout: p.payout || 0,
         })));
       }
       const { data: adminRow } = await supabase
@@ -1430,6 +1548,40 @@ export default function Clarion() {
       .eq('user_id', authUser.id);
   }
 };
+
+  const loadLeaderboard = async () => {
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, leaderboard_rank')
+      .order('leaderboard_rank', { ascending: true });
+    if (profileRows && profileRows.length > 0) {
+      // Get total trade counts for all users
+      const { data: tradeCounts } = await supabase
+        .from('positions')
+        .select('user_id');
+      const countMap = {};
+      if (tradeCounts) {
+        tradeCounts.forEach(p => {
+          countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
+        });
+      }
+      setCommunityUsers(profileRows
+        .filter(p => p.username)
+        .map((p, i) => ({
+          id: p.user_id,
+          username: p.username,
+          name: p.username,
+          accuracy: p.accuracy || 0,
+          totalTrades: countMap[p.user_id] || 0,
+          impactScore: p.impact_score || 0,
+          leaderboardRank: p.leaderboard_rank || i + 1,
+          following: false,
+          cause: p.cause || '',
+          causePrivate: false,
+          positions: [],
+        })));
+    }
+  };
 
   const handleLogout = async () => {
   await supabase.auth.signOut();
@@ -1671,7 +1823,7 @@ if (authLoading) {
       </div>
 
       {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} waitlist={waitlist} setWaitlist={setWaitlist} />}
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} authUser={authUser} setBalance={setBalance} setPositions={setPositions} loadLeaderboard={loadLeaderboard} />}
       {showSuggestMarket && <SuggestMarketModal onClose={() => setShowSuggestMarket(false)} authUser={authUser} onSubmitted={() => setShowSuggestMarket(false)} />}
 
       <header className="bg-white/80 backdrop-blur border-b border-amber-100 sticky top-0 z-10">
@@ -1841,14 +1993,21 @@ if (authLoading) {
         {activeTab === 'positions' && (
           <div>
             <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-1">Your positions</h1>
-            <p className="text-sm text-stone-500 mb-4">{positions.length} open</p>
+            <p className="text-sm text-stone-500 mb-4">{positions.filter(p => !p.resolved).length} open · {positions.filter(p => p.resolved).length} resolved</p>
             {positions.length > 0 ? (
               <div className="space-y-3">
                 {positions.map(p => (
-                  <div key={p.id} className="p-4 md:p-5 rounded-2xl bg-white border border-stone-100">
+                  <div key={p.id} className={`p-4 md:p-5 rounded-2xl border ${p.resolved ? (p.won ? 'bg-emerald-50 border-emerald-100' : 'bg-stone-50 border-stone-100') : 'bg-white border-stone-100'}`}>
                     <h3 className="text-sm font-serif text-stone-900 mb-2">{p.market}</h3>
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                        {p.resolved && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                            {p.won ? `+$${p.payout} won` : 'Lost'}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-sm text-stone-500">{p.shares} shares at {p.avgPrice} cents</span>
                     </div>
                   </div>

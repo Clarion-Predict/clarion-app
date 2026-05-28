@@ -31,8 +31,8 @@ const causeOptions = [
   { id: 'reproductive', name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
 ];
 
-const initialMarkets = [
-  // ===== SPOTLIGHT (hot right now) =====
+const initialMarkets = [];
+const _unusedMarkets = [
   { id: 1, category: 'spotlight', show: 'Love Island USA', question: "Will Love Island USA have a dramatic recoupling in its premiere week?", context: "Love Island USA returns June 2 on Peacock. Season 7 cast has been announced and fans are already debating alliances.", yes: 78, no: 22, volume: '$12.4k', traders: 487, comments: 134, trending: true, ends: 'Jun 8, 2026', status: 'open' },
   { id: 2, category: 'spotlight', show: 'The Traitors US', question: "Will The Traitors US have a double elimination this week?", context: "Six players remain. The roundtable has been getting more chaotic each episode as alliances fracture.", yes: 54, no: 46, volume: '$9.7k', traders: 381, comments: 112, trending: true, ends: 'Jun 1, 2026', status: 'open' },
   { id: 3, category: 'spotlight', show: 'Calabasas Confidential', question: "Will Calabasas Confidential beat its premiere night viewership expectations?", context: "Premieres May 29. Early buzz has been strong and the Kardashian adjacent cast is drawing attention.", yes: 61, no: 39, volume: '$6.2k', traders: 244, comments: 78, trending: true, ends: 'Jun 1, 2026', status: 'open' },
@@ -69,7 +69,7 @@ const initialMarkets = [
   { id: 26, category: 'lifestyle', show: 'Selling Sunset', question: "Will Selling Sunset introduce a new cast member in the back half of Season 8?", context: "The show has consistently added cast mid-season. Jason Oppenheim has hinted at new agents joining.", yes: 68, no: 32, volume: '$5.8k', traders: 229, comments: 69, ends: 'Jul 15, 2026', status: 'open' },
   { id: 27, category: 'lifestyle', show: 'Queer Eye', question: "Will Queer Eye's final season receive an Emmy nomination?", context: "The final season was announced recently. The show has received 7 Emmy wins across its run.", yes: 59, no: 41, volume: '$4.4k', traders: 174, comments: 52, ends: 'Jul 31, 2026', status: 'open' },
   { id: 28, category: 'lifestyle', show: 'Jersey Shore', question: "Will Jersey Shore Family Vacation film another international trip this season?", context: "The cast has filmed in Italy and the Bahamas before. Producers have been teasing a new location.", yes: 53, no: 47, volume: '$3.9k', traders: 155, comments: 41, ends: 'Aug 1, 2026', status: 'open' },
-];
+]; // end _unusedMarkets
 
 // ========== MOCK COMMUNITY USERS ==========
 const initialCommunityUsers = [
@@ -176,6 +176,97 @@ const Avatar = ({ username, size = 36, className = '' }) => {
   return (
     <div className={`${colors[colorIdx]} rounded-full flex items-center justify-center font-medium text-stone-800 flex-shrink-0 ${className}`} style={{ width: size, height: size, fontSize: size * 0.38 }}>
       {username ? username[0].toUpperCase() : '?'}
+    </div>
+  );
+};
+
+// ========== SUGGEST MARKET MODAL ==========
+const SuggestMarketModal = ({ onClose, authUser, onSubmitted }) => {
+  const [question, setQuestion] = useState('');
+  const [show, setShow] = useState('');
+  const [category, setCategory] = useState('');
+  const [context, setContext] = useState('');
+  const [endsHint, setEndsHint] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!question.trim()) { setError('Please enter a question.'); return; }
+    if (!category) { setError('Please select a category.'); return; }
+    if (!show.trim()) { setError('Please enter the show name.'); return; }
+    setLoading(true);
+    const { error: submitError } = await supabase.from('submissions').insert({
+      user_id: authUser.id,
+      username: authUser.username,
+      question: question.trim(),
+      show: show.trim(),
+      category,
+      context: context.trim(),
+      ends_hint: endsHint.trim(),
+      status: 'pending',
+    });
+    setLoading(false);
+    if (submitError) { setError('Something went wrong. Please try again.'); return; }
+    setSubmitted(true);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-5 right-5 text-stone-400"><X className="w-5 h-5" /></button>
+        {submitted ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8 text-emerald-600" /></div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-2">Market submitted!</h2>
+            <p className="text-sm text-stone-500 mb-6">We'll review your suggestion and list it if it meets our content standards. Thanks for contributing!</p>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-full bg-stone-900 text-white text-sm">Back to Clarion</button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Logo size={28} />
+              <span className="font-serif text-stone-900">Suggest a market</span>
+            </div>
+            <p className="text-sm text-stone-500 mb-6">Got a question worth trading on? Submit it and we'll review it for listing.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">The question <span className="text-rose-400">*</span></label>
+                <input type="text" value={question} onChange={e => setQuestion(e.target.value)} placeholder="Will Jenny get a rose tonight?" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900" />
+                <p className="text-xs text-stone-400 mt-1">Must be a yes/no question with a clear public resolution.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">Show <span className="text-rose-400">*</span></label>
+                <input type="text" value={show} onChange={e => setShow(e.target.value)} placeholder="The Bachelor" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">Category <span className="text-rose-400">*</span></label>
+                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900">
+                  <option value="">Select a category</option>
+                  <option value="spotlight">Spotlight</option>
+                  <option value="dating">Dating & Love</option>
+                  <option value="competition">Competition</option>
+                  <option value="housewives">Housewives & Bravo</option>
+                  <option value="lifestyle">Family & Lifestyle</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">Context <span className="text-stone-400 font-normal">(optional)</span></label>
+                <textarea value={context} onChange={e => setContext(e.target.value)} placeholder="A sentence or two explaining why this is worth trading on..." className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 resize-none text-stone-900" rows={3} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">Resolution date <span className="text-stone-400 font-normal">(optional)</span></label>
+                <input type="text" value={endsHint} onChange={e => setEndsHint(e.target.value)} placeholder="e.g. Jun 10, 2026" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900" />
+              </div>
+            </div>
+            {error && <p className="text-xs text-rose-600 mt-3">{error}</p>}
+            <button onClick={handleSubmit} disabled={loading} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium mt-6 disabled:opacity-60">
+              {loading ? 'Submitting…' : 'Submit for review'}
+            </button>
+            <p className="text-xs text-stone-400 text-center mt-3">All submissions are manually reviewed before listing.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -610,31 +701,10 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
   );
 };
 
-// ========== ADMIN PANEL (unchanged, abbreviated) ==========
+// ========== ADMIN PANEL ==========
 const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist }) => {
   const [adminTab, setAdminTab] = useState('overview');
   const [resolvingMarket, setResolvingMarket] = useState(null);
-  const [autoRunning, setAutoRunning] = useState(false);
-  const [autoSpeed, setAutoSpeed] = useState(8);
-  const [lastGenerated, setLastGenerated] = useState(null);
-
-  useEffect(() => {
-    if (!autoRunning) return;
-    const interval = setInterval(() => {
-      const newSub = generateSubmission();
-      setSubmissions(prev => [newSub, ...prev]);
-      setLastGenerated(newSub.id);
-      setTimeout(() => setLastGenerated(null), 1500);
-    }, autoSpeed * 1000);
-    return () => clearInterval(interval);
-  }, [autoRunning, autoSpeed, setSubmissions]);
-
-  const generateOnce = () => {
-    const newSub = generateSubmission();
-    setSubmissions(prev => [newSub, ...prev]);
-    setLastGenerated(newSub.id);
-    setTimeout(() => setLastGenerated(null), 1500);
-  };
 
   const resolveMarket = (marketId, outcome) => {
     setMarkets(prev => prev.map(m => m.id === marketId ? { ...m, status: 'resolved', outcome } : m));
@@ -642,15 +712,56 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
     setResolvingMarket(null);
   };
 
-  const approveSubmission = (subId) => {
+  const approveSubmission = async (subId) => {
     const sub = submissions.find(s => s.id === subId);
     if (!sub) return;
-    const newMarket = { id: Math.max.apply(null, markets.map(m => m.id)) + 1, category: sub.category, question: sub.question, context: sub.context, yes: 50, no: 50, volume: '$0', traders: 0, comments: 0, ends: sub.endsHint, status: 'open' };
-    setMarkets(prev => [...prev, newMarket]);
+    // Save to Supabase markets table
+    const { data: newMarketRow, error } = await supabase.from('markets').insert({
+      category: sub.category,
+      show: sub.show || '',
+      question: sub.question,
+      context: sub.context || '',
+      yes: 50,
+      no: 50,
+      volume: '$0',
+      traders: 0,
+      comments: 0,
+      ends: sub.endsHint || 'TBD',
+      status: 'open',
+      trending: false,
+    }).select().single();
+    if (error) { alert('Failed to save market: ' + error.message); return; }
+    // Add to local state
+    if (newMarketRow) {
+      setMarkets(prev => [...prev, {
+        id: newMarketRow.id,
+        category: newMarketRow.category,
+        show: newMarketRow.show,
+        question: newMarketRow.question,
+        context: newMarketRow.context,
+        yes: newMarketRow.yes,
+        no: newMarketRow.no,
+        volume: newMarketRow.volume,
+        traders: newMarketRow.traders,
+        comments: newMarketRow.comments,
+        trending: newMarketRow.trending,
+        ends: newMarketRow.ends,
+        status: newMarketRow.status,
+      }]);
+    }
     setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'approved' } : s));
+    if (sub.supabaseId) {
+      await supabase.from('submissions').update({ status: 'approved' }).eq('id', sub.supabaseId);
+    }
   };
 
-  const rejectSubmission = (subId) => setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'rejected' } : s));
+  const rejectSubmission = async (subId) => {
+    const sub = submissions.find(s => s.id === subId);
+    setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'rejected' } : s));
+    if (sub?.supabaseId) {
+      await supabase.from('submissions').update({ status: 'rejected' }).eq('id', sub.supabaseId);
+    }
+  };
 
   const totalDeposits = ledger.filter(e => e.type === 'deposit').reduce((s, e) => s + e.amount, 0);
   const totalFees = ledger.filter(e => e.type === 'fee').reduce((s, e) => s + Math.abs(e.amount), 0);
@@ -697,56 +808,28 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
             {adminTab === 'submissions' && (
               <div>
                 <h1 className="text-xl font-medium text-stone-900 mb-1">Market submissions</h1>
-                <p className="text-xs text-stone-500 mb-4">{pending} pending</p>
-                <div className="mb-4 p-4 rounded-lg bg-stone-900 text-stone-200">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 flex-1">
-                      <div className={`w-2 h-2 rounded-full ${autoRunning ? 'bg-emerald-400 animate-pulse' : 'bg-stone-500'}`} />
-                      <span className="text-xs font-mono">automation</span>
-                      <span className="text-xs text-stone-500">{autoRunning ? 'running, every ' + autoSpeed + 's' : 'paused'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select value={autoSpeed} onChange={e => setAutoSpeed(Number(e.target.value))} disabled={autoRunning} className="text-xs bg-stone-800 border border-stone-700 rounded px-2 py-1">
-                        <option value="4">4s</option><option value="8">8s</option><option value="15">15s</option><option value="30">30s</option>
-                      </select>
-                      <button onClick={generateOnce} className="px-3 py-1.5 rounded-md bg-stone-800 text-xs flex items-center gap-1.5"><Plus className="w-3 h-3" /> One</button>
-                      <button onClick={() => setAutoRunning(!autoRunning)} className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 font-medium ${autoRunning ? 'bg-rose-600' : 'bg-emerald-600'} text-white`}>
-                        {autoRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}{autoRunning ? 'Pause' : 'Run'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-xs text-stone-500 mb-4">{pending} pending review</p>
                 <div className="space-y-3">
-                  {submissions.filter(s => s.status === 'pending').map(sub => {
-                    const checks = sub.autoChecks;
-                    const allPass = checks.publicResolution && checks.noPerverseIncentive && checks.dignity && checks.valuesAligned;
-                    const isNew = lastGenerated === sub.id;
-                    const sourceColor = sub.source === 'event-feed' || sub.source === 'scheduled-event' ? 'bg-blue-100 text-blue-700' : sub.source === 'llm-drafted' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700';
-                    return (
-                      <div key={sub.id} className={`bg-white rounded-lg border p-4 transition-all ${isNew ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-stone-200'}`}>
-                        <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
-                          <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{sub.category}</span>
-                          {sub.source && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sourceColor}`}>{sub.source}</span>}
-                          <span className="text-stone-500">by {sub.submitter}</span>
-                          <span className="text-stone-500">{sub.time}</span>
-                          {isNew && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">NEW</span>}
-                        </div>
-                        <h3 className="text-base font-medium text-stone-900 mb-2">{sub.question}</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                          {[{ key: 'publicResolution', label: 'Public resolution' }, { key: 'noPerverseIncentive', label: 'No perverse incentive' }, { key: 'dignity', label: 'Dignity' }, { key: 'valuesAligned', label: 'Values aligned' }].map(check => (
-                            <div key={check.key} className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs ${checks[check.key] ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                              {checks[check.key] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}<span className="truncate">{check.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                        {sub.rejectReason && <div className="p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-3"><span className="font-medium">Auto-flag:</span> {sub.rejectReason}</div>}
-                        <div className="flex gap-2">
-                          <button onClick={() => approveSubmission(sub.id)} disabled={!allPass} className={`flex-1 py-2 rounded-md text-sm font-medium ${allPass ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-400'}`}>{allPass ? 'Approve and list' : 'Cannot auto-approve'}</button>
-                          <button onClick={() => rejectSubmission(sub.id)} className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium">Reject</button>
-                        </div>
+                  {pending === 0 && (
+                    <div className="text-center py-10 text-stone-400 text-sm">No pending submissions.</div>
+                  )}
+                  {submissions.filter(s => s.status === 'pending').map(sub => (
+                    <div key={sub.id} className="bg-white rounded-lg border border-stone-200 p-4">
+                      <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+                        <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{sub.category}</span>
+                        {sub.show && <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{sub.show}</span>}
+                        <span className="text-stone-500">by {sub.submitter}</span>
+                        <span className="text-stone-500">{sub.time}</span>
                       </div>
-                    );
-                  })}
+                      <h3 className="text-base font-medium text-stone-900 mb-2">{sub.question}</h3>
+                      {sub.context && <p className="text-xs text-stone-500 mb-3">{sub.context}</p>}
+                      {sub.endsHint && <p className="text-xs text-stone-400 mb-3">Resolves: {sub.endsHint}</p>}
+                      <div className="flex gap-2">
+                        <button onClick={() => approveSubmission(sub.id)} className="flex-1 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium">Approve and list</button>
+                        <button onClick={() => rejectSubmission(sub.id)} className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium">Reject</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -1132,7 +1215,15 @@ export default function Clarion() {
   const [tradeSide, setTradeSide] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    const validTabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+    return validTabs.includes(hash) ? hash : 'home';
+  });
+  const navigateTo = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab === 'home' ? '' : tab;
+  };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -1142,8 +1233,30 @@ export default function Clarion() {
 
   const [authLoading, setAuthLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showSuggestMarket, setShowSuggestMarket] = useState(false);
 
   useEffect(() => {
+  // Load markets from Supabase for everyone (not just logged-in users)
+  supabase.from('markets').select('*').eq('status', 'open').then(({ data: marketRows }) => {
+    if (marketRows && marketRows.length > 0) {
+      setMarkets(marketRows.map(m => ({
+        id: m.id,
+        category: m.category,
+        show: m.show,
+        question: m.question,
+        context: m.context,
+        yes: m.yes,
+        no: m.no,
+        volume: m.volume,
+        traders: m.traders,
+        comments: m.comments,
+        trending: m.trending,
+        ends: m.ends,
+        status: m.status,
+      })));
+    }
+  });
+
   supabase.auth.getSession().then(async ({ data: { session } }) => {
     if (session?.user) {
       const { data: profile } = await supabase
@@ -1195,6 +1308,29 @@ export default function Clarion() {
         console.log('adminRow:', adminRow);
         console.log('isAdmin:', !!adminRow);
         setIsAdmin(!!adminRow);
+
+        if (adminRow) {
+          const { data: submissionRows } = await supabase
+            .from('submissions')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (submissionRows) {
+            setSubmissions(submissionRows.map(s => ({
+              id: s.id,
+              submitter: s.username || 'Anonymous',
+              source: 'community',
+              time: new Date(s.created_at).toLocaleDateString(),
+              category: s.category,
+              question: s.question,
+              show: s.show,
+              context: s.context,
+              endsHint: s.ends_hint,
+              autoChecks: { publicResolution: true, noPerverseIncentive: true, dignity: true, valuesAligned: true },
+              status: s.status,
+              supabaseId: s.id,
+            })));
+          }
+        }
       }
       setAuthLoading(false);
     });
@@ -1323,7 +1459,7 @@ if (authLoading) {
         <LandingPage
           onLogin={() => setAuthScreen('login')}
           onSignup={() => setAuthScreen('signup')}
-          markets={initialMarkets}
+          markets={markets}
           categories={categories}
         />
         {authScreen && (
@@ -1536,6 +1672,7 @@ if (authLoading) {
 
       {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} waitlist={waitlist} setWaitlist={setWaitlist} />}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} markets={markets} setMarkets={setMarkets} ledger={ledger} setLedger={setLedger} users={users} submissions={submissions} setSubmissions={setSubmissions} waitlist={waitlist} />}
+      {showSuggestMarket && <SuggestMarketModal onClose={() => setShowSuggestMarket(false)} authUser={authUser} onSubmitted={() => setShowSuggestMarket(false)} />}
 
       <header className="bg-white/80 backdrop-blur border-b border-amber-100 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-4">
@@ -1561,7 +1698,7 @@ if (authLoading) {
                         <div className="font-medium text-white">@{user.username || user.email.split('@')[0]}</div>
                         <div className="text-stone-500">{user.email}</div>
                       </div>
-                      <button onClick={() => { setActiveTab('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
+                      <button onClick={() => { navigateTo('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
 {isAdmin && (
   <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
 )}                      <div className="border-t border-stone-800 mt-1 pt-1">
@@ -1575,7 +1712,7 @@ if (authLoading) {
           </div>
           <div className="flex gap-1 text-sm overflow-x-auto pb-0.5">
             {tabs.map(t => (
-              <button key={t} onClick={() => setActiveTab(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
+              <button key={t} onClick={() => navigateTo(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
                 {t === 'feed' && <Users className="w-3 h-3" />}
                 {t === 'leaderboard' && <Trophy className="w-3 h-3" />}
                 {t === 'profile' && <UserCircle className="w-3 h-3" />}
@@ -1605,10 +1742,25 @@ if (authLoading) {
                 <div className="flex-1">
                   <h3 className="text-base font-serif text-stone-900 mb-1">The Clarion Pledge</h3>
                   <p className="text-sm text-stone-700 mb-3 leading-relaxed">1 percent of every trade supports women's health, mental health, economic empowerment, and reproductive rights. Community total: <span className="font-medium text-stone-900">${communityImpact.totalGiven.toLocaleString()}</span>.</p>
-                  <button onClick={() => setActiveTab('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
+                  <button onClick={() => navigateTo('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
                 </div>
               </div>
             </div>
+            <button
+              onClick={() => setShowSuggestMarket(true)}
+              className="w-full flex items-center justify-between p-4 md:p-5 rounded-2xl bg-white border border-stone-100 hover:border-stone-200 mb-6"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-stone-50 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-stone-600" />
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-medium text-stone-900">Suggest a market</div>
+                  <div className="text-xs text-stone-400">Got a question worth trading on?</div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-stone-400" />
+            </button>
             <h2 className="text-sm font-medium text-stone-900 uppercase mb-3">All markets</h2>
             <div className="space-y-3">
               {markets.filter(m => m.status === 'open').map(m => {
@@ -1638,6 +1790,12 @@ if (authLoading) {
                 </button>
               ); })}
             </div>
+            <button
+              onClick={() => setShowSuggestMarket(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 mb-5"
+            >
+              <Plus className="w-3.5 h-3.5" /> Suggest a market
+            </button>
             <div className="space-y-3">
               {filtered.map(m => {
                 const Cat = categories.find(c => c.id === m.category);
@@ -1664,7 +1822,7 @@ if (authLoading) {
                 <h1 className="text-xl md:text-2xl font-serif text-stone-900">Activity feed</h1>
                 <p className="text-sm text-stone-500">People you follow · 280 char comments</p>
               </div>
-              <button onClick={() => setActiveTab('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
+              <button onClick={() => navigateTo('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
             </div>
             <ActivityFeed communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} />
           </div>
@@ -1699,7 +1857,7 @@ if (authLoading) {
             ) : (
               <div className="bg-white rounded-3xl p-8 border border-stone-100 text-center">
                 <h3 className="text-lg font-serif text-stone-900 mb-2">No positions yet</h3>
-                <button onClick={() => setActiveTab('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
+                <button onClick={() => navigateTo('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
               </div>
             )}
           </div>
