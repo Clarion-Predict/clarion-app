@@ -1639,10 +1639,10 @@ if (authLoading) {
   const handleTrade = async () => {
   setShowConfirm(true);
   const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
-  const cost = (tradeAmount * price) / 100;
+  const cost = tradeAmount;
   const pledgeAmount = cost * 0.01;
   const newBalance = Math.max(0, balance - cost);
-  const shares = Math.floor((tradeAmount / price) * 100);
+  const shares = Math.floor(tradeAmount / (price / 100));
 
   setBalance(newBalance);
 
@@ -1717,8 +1717,8 @@ if (authLoading) {
   // Trade modal
   if (selectedMarket && tradeSide) {
     const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
-    const shares = Math.floor((tradeAmount / price) * 100);
-    const cost = (tradeAmount * price) / 100;
+    const shares = Math.floor(tradeAmount / (price / 100));
+    const cost = tradeAmount;
     const pledgeAmount = cost * 0.01;
     const cause = causesByCategory[selectedMarket.category];
     return (
