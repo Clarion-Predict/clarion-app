@@ -809,7 +809,7 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
 
     // 6. Update positions in local state
     setPositions(prev => prev.map(p =>
-      p.marketId === marketId
+      String(p.marketId) === String(marketId)
         ? { ...p, resolved: true, won: p.side === outcome, payout: p.side === outcome ? p.shares : 0 }
         : p
     ));
@@ -1397,6 +1397,7 @@ export default function Clarion() {
         setBalance(balanceRow.balance);
       }
       if (positionRows) {
+          console.log('positions from supabase:', positionRows.map(p => ({ id: p.id, market: p.market, resolved: p.resolved, won: p.won, payout: p.payout })));
           setPositions(positionRows.map(p => ({
             id: p.id,
             marketId: p.market_id,
@@ -1406,8 +1407,8 @@ export default function Clarion() {
             shares: p.shares,
             avgPrice: p.avg_price,
             invested: p.invested,
-            resolved: p.resolved || false,
-            won: p.won,
+            resolved: p.resolved === true,
+            won: p.won === true,
             payout: p.payout || 0,
           })));
         }
@@ -1518,8 +1519,8 @@ export default function Clarion() {
           shares: p.shares,
           avgPrice: p.avg_price,
           invested: p.invested,
-          resolved: p.resolved || false,
-          won: p.won,
+          resolved: p.resolved === true,
+          won: p.won === true,
           payout: p.payout || 0,
         })));
       }
@@ -1638,10 +1639,10 @@ if (authLoading) {
   const handleTrade = async () => {
   setShowConfirm(true);
   const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
-  const cost = (tradeAmount * price) / 100;
+  const cost = tradeAmount;
   const pledgeAmount = cost * 0.01;
   const newBalance = Math.max(0, balance - cost);
-  const shares = Math.floor((tradeAmount / price) * 100);
+  const shares = Math.floor(tradeAmount / (price / 100));
 
   setBalance(newBalance);
 
@@ -1716,8 +1717,8 @@ if (authLoading) {
   // Trade modal
   if (selectedMarket && tradeSide) {
     const price = tradeSide === 'yes' ? selectedMarket.yes : selectedMarket.no;
-    const shares = Math.floor((tradeAmount / price) * 100);
-    const cost = (tradeAmount * price) / 100;
+    const shares = Math.floor(tradeAmount / (price / 100));
+    const cost = tradeAmount;
     const pledgeAmount = cost * 0.01;
     const cause = causesByCategory[selectedMarket.category];
     return (
@@ -1748,7 +1749,7 @@ if (authLoading) {
               <label className="block text-xs uppercase text-stone-500 mb-2">Amount</label>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl font-serif text-stone-900">$</span>
-                <input type="number" value={tradeAmount} onChange={e => setTradeAmount(Math.max(1, parseInt(e.target.value) || 0))} className="text-3xl font-serif text-stone-900 bg-transparent border-b border-stone-200 w-full focus:outline-none pb-1" />
+                <input type="number" value={tradeAmount || ''} onChange={e => setTradeAmount(parseInt(e.target.value) || 0)} className="text-3xl font-serif text-stone-900 bg-transparent border-b border-stone-200 w-full focus:outline-none pb-1" />
               </div>
               <div className="flex gap-2 mb-4">{[5, 10, 25, 50].map(amt => <button key={amt} onClick={() => setTradeAmount(amt)} className="px-3 py-1 text-xs rounded-full bg-stone-100 text-stone-700">${amt}</button>)}</div>
               <div className="bg-stone-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">

@@ -569,78 +569,8 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
   );
 };
 
-// ========== FOLLOWING TAB ==========
-const FollowingTab = ({ communityUsers, onFollowToggle, onViewProfile, authUser }) => {
-  const [view, setView] = useState<'following' | 'followers'>('following');
-  const following = communityUsers.filter(u => u.following);
-  const followers = communityUsers.filter(u => u.followsMe);
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-5">
-        <button onClick={() => setView('following')} className={`px-4 py-2 rounded-full text-sm font-medium ${view === 'following' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>
-          Following ({following.length})
-        </button>
-        <button onClick={() => setView('followers')} className={`px-4 py-2 rounded-full text-sm font-medium ${view === 'followers' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>
-          Followers ({followers.length})
-        </button>
-      </div>
-
-      {view === 'following' && (
-        <div className="space-y-2">
-          {following.length === 0 && (
-            <div className="text-center py-10 text-stone-400 text-sm">You aren't following anyone yet.</div>
-          )}
-          {following.map(u => (
-            <div key={u.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100">
-              <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} size={40} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <button onClick={() => onViewProfile(u)} className="text-sm font-medium text-stone-900 hover:underline">@{u.username}</button>
-                <div className="text-xs text-stone-400">{u.totalTrades} trades · {u.accuracy}% accuracy</div>
-              </div>
-              <button
-                onClick={() => onFollowToggle(u.id)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600"
-              >
-                Unfollow
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {view === 'followers' && (
-        <div className="space-y-2">
-          {followers.length === 0 && (
-            <div className="text-center py-10 text-stone-400 text-sm">No one is following you yet.</div>
-          )}
-          {followers.map(u => (
-            <div key={u.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100">
-              <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} size={40} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <button onClick={() => onViewProfile(u)} className="text-sm font-medium text-stone-900 hover:underline">@{u.username}</button>
-                <div className="text-xs text-stone-400">{u.totalTrades} trades · {u.accuracy}% accuracy</div>
-              </div>
-              <button
-                onClick={() => onFollowToggle(u.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium ${u.following ? 'bg-stone-100 text-stone-600' : 'bg-stone-900 text-white'}`}
-              >
-                {u.following ? 'Following' : 'Follow back'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ========== LEADERBOARD TAB ==========
-const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile, onFollowToggle }) => {
+const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile }) => {
   const [sortBy, setSortBy] = useState('rank');
   const sorted = [...communityUsers].sort((a, b) => {
     if (sortBy === 'rank') return a.leaderboardRank - b.leaderboardRank;
@@ -686,7 +616,7 @@ const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile, onFo
                 <div className="text-xs text-stone-400">impact</div>
               </div>
               <button
-                onClick={() => onFollowToggle(u.id)}
+                onClick={() => setCommunityUsers(prev => prev.map(cu => cu.id === u.id ? { ...cu, following: !cu.following } : cu))}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 ${u.following ? 'bg-stone-100 text-stone-600' : 'bg-stone-900 text-white'}`}
               >
                 {u.following ? 'Following' : 'Follow'}
@@ -1453,7 +1383,7 @@ export default function Clarion() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace('#', '');
-    const validTabs = ['home', 'markets', 'feed', 'following', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+    const validTabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
     return validTabs.includes(hash) ? hash : 'home';
   });
   const navigateTo = (tab: string) => {
@@ -1707,42 +1637,6 @@ export default function Clarion() {
           followRows.forEach(f => followingIds.add(f.following_id));
         }
       }
-      // Load who follows current user
-      let followerIds = new Set();
-      if (userId) {
-        const { data: followerRows } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('following_id', userId);
-        if (followerRows) {
-          followerRows.forEach(f => followerIds.add(f.follower_id));
-        }
-      }
-
-      // Load positions for followed users
-      let followedPositionsMap = {};
-      if (followingIds.size > 0) {
-        const { data: followedPositions } = await supabase
-          .from('positions')
-          .select('user_id, market_id, market, category, side, invested, created_at, resolved, won')
-          .in('user_id', Array.from(followingIds))
-          .order('created_at', { ascending: false });
-        if (followedPositions) {
-          followedPositions.forEach(p => {
-            if (!followedPositionsMap[p.user_id]) followedPositionsMap[p.user_id] = [];
-            followedPositionsMap[p.user_id].push({
-              marketId: p.market_id,
-              market: p.market,
-              category: p.category,
-              side: p.side,
-              amount: p.invested,
-              ts: new Date(p.created_at).toLocaleDateString(),
-              resolved: p.resolved,
-              won: p.won,
-            });
-          });
-        }
-      }
       setCommunityUsers(profileRows
         .filter(p => p.username)
         .map((p, i) => ({
@@ -1754,10 +1648,9 @@ export default function Clarion() {
           impactScore: p.impact_score || 0,
           leaderboardRank: p.leaderboard_rank || i + 1,
           following: followingIds.has(p.user_id),
-          followsMe: followerIds.has(p.user_id),
           cause: p.cause || '',
           causePrivate: false,
-          positions: followedPositionsMap[p.user_id] || [],
+          positions: [],
         })));
     }
   };
@@ -1815,34 +1708,18 @@ if (authLoading) {
     const user = communityUsers.find(u => u.id === userId);
     if (!user || !authUser) return;
     if (user.following) {
+      // Unfollow
       await supabase.from('follows').delete()
         .eq('follower_id', authUser.id)
         .eq('following_id', userId);
-      setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: false } : u));
     } else {
+      // Follow
       await supabase.from('follows').insert({
         follower_id: authUser.id,
         following_id: userId,
       });
-      // Load their positions for the feed
-      const { data: posRows } = await supabase
-        .from('positions')
-        .select('market_id, market, category, side, invested, created_at, resolved, won')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      const userPositions = posRows ? posRows.map(p => ({
-        marketId: p.market_id,
-        market: p.market,
-        category: p.category,
-        side: p.side,
-        amount: p.invested,
-        ts: new Date(p.created_at).toLocaleDateString(),
-        resolved: p.resolved,
-        won: p.won,
-      })) : [];
-      setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: true, positions: userPositions } : u));
     }
+    setCommunityUsers(prev => prev.map(u => u.id === userId ? { ...u, following: !u.following } : u));
   };
 
   const handleTrade = async () => {
@@ -2020,7 +1897,7 @@ if (authLoading) {
   const filtered = markets.filter(m => (activeCategory === 'all' || m.category === activeCategory) && m.status === 'open');
   const trending = markets.filter(m => m.trending && m.status === 'open').slice(0, 3);
 
-  const tabs = ['home', 'markets', 'feed', 'following', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+  const tabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
 
   return (
     <div className="min-h-screen bg-amber-50/40 pb-24 md:pb-6">
@@ -2190,25 +2067,13 @@ if (authLoading) {
           </div>
         )}
 
-        {activeTab === 'following' && (
-          <div>
-            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-5">Following</h1>
-            <FollowingTab
-              communityUsers={communityUsers}
-              onFollowToggle={handleFollowToggle}
-              onViewProfile={setViewingProfile}
-              authUser={authUser}
-            />
-          </div>
-        )}
-
         {activeTab === 'leaderboard' && (
           <div>
             <div className="mb-5">
               <h1 className="text-xl md:text-2xl font-serif text-stone-900">Leaderboard</h1>
               <p className="text-sm text-stone-500">Ranked by accuracy on resolved markets</p>
             </div>
-            <LeaderboardTab communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} onViewProfile={setViewingProfile} onFollowToggle={handleFollowToggle} />
+            <LeaderboardTab communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} onViewProfile={setViewingProfile} />
           </div>
         )}
 
