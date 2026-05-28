@@ -1141,6 +1141,7 @@ export default function Clarion() {
   const [viewingProfile, setViewingProfile] = useState(null);
 
   const [authLoading, setAuthLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
   supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -1175,21 +1176,27 @@ export default function Clarion() {
         setBalance(balanceRow.balance);
       }
       if (positionRows) {
-        setPositions(positionRows.map(p => ({
-          id: p.id,
-          marketId: p.market_id,
-          market: p.market,
-          category: p.category,
-          side: p.side,
-          shares: p.shares,
-          avgPrice: p.avg_price,
-          invested: p.invested,
-        })));
+          setPositions(positionRows.map(p => ({
+            id: p.id,
+            marketId: p.market_id,
+            market: p.market,
+            category: p.category,
+            side: p.side,
+            shares: p.shares,
+            avgPrice: p.avg_price,
+            invested: p.invested,
+          })));
+        }
+        const { data: adminRow } = await supabase
+          .from('admins')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        setIsAdmin(!!adminRow);
       }
-    }
-    setAuthLoading(false);
-  });
-}, []);
+      setAuthLoading(false);
+    });
+  }, []); 
 
   const handleAuth = async (userData) => {
   if (userData.mode === 'signup') {
@@ -1261,6 +1268,12 @@ export default function Clarion() {
           invested: p.invested,
         })));
       }
+      const { data: adminRow } = await supabase
+        .from('admins')
+        .select('user_id')
+        .eq('user_id', data.user.id)
+        .maybeSingle();
+      setIsAdmin(!!adminRow);
       setAuthScreen(null);
     }
   }
@@ -1547,8 +1560,9 @@ if (authLoading) {
                         <div className="text-stone-500">{user.email}</div>
                       </div>
                       <button onClick={() => { setActiveTab('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
-                      <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
-                      <div className="border-t border-stone-800 mt-1 pt-1">
+{isAdmin && (
+  <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
+)}                      <div className="border-t border-stone-800 mt-1 pt-1">
                         <button onClick={() => { handleLogout(); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left text-rose-400"><LogOut className="w-4 h-4" /> Sign out</button>
                       </div>
                     </div>
