@@ -31,8 +31,8 @@ const causeOptions = [
   { id: 'reproductive', name: "Reproductive rights & healthcare access", org: "Center for Reproductive Rights" },
 ];
 
-const initialMarkets = [];
-const _unusedMarkets = [
+const initialMarkets = [
+  // ===== SPOTLIGHT (hot right now) =====
   { id: 1, category: 'spotlight', show: 'Love Island USA', question: "Will Love Island USA have a dramatic recoupling in its premiere week?", context: "Love Island USA returns June 2 on Peacock. Season 7 cast has been announced and fans are already debating alliances.", yes: 78, no: 22, volume: '$12.4k', traders: 487, comments: 134, trending: true, ends: 'Jun 8, 2026', status: 'open' },
   { id: 2, category: 'spotlight', show: 'The Traitors US', question: "Will The Traitors US have a double elimination this week?", context: "Six players remain. The roundtable has been getting more chaotic each episode as alliances fracture.", yes: 54, no: 46, volume: '$9.7k', traders: 381, comments: 112, trending: true, ends: 'Jun 1, 2026', status: 'open' },
   { id: 3, category: 'spotlight', show: 'Calabasas Confidential', question: "Will Calabasas Confidential beat its premiere night viewership expectations?", context: "Premieres May 29. Early buzz has been strong and the Kardashian adjacent cast is drawing attention.", yes: 61, no: 39, volume: '$6.2k', traders: 244, comments: 78, trending: true, ends: 'Jun 1, 2026', status: 'open' },
@@ -69,7 +69,7 @@ const _unusedMarkets = [
   { id: 26, category: 'lifestyle', show: 'Selling Sunset', question: "Will Selling Sunset introduce a new cast member in the back half of Season 8?", context: "The show has consistently added cast mid-season. Jason Oppenheim has hinted at new agents joining.", yes: 68, no: 32, volume: '$5.8k', traders: 229, comments: 69, ends: 'Jul 15, 2026', status: 'open' },
   { id: 27, category: 'lifestyle', show: 'Queer Eye', question: "Will Queer Eye's final season receive an Emmy nomination?", context: "The final season was announced recently. The show has received 7 Emmy wins across its run.", yes: 59, no: 41, volume: '$4.4k', traders: 174, comments: 52, ends: 'Jul 31, 2026', status: 'open' },
   { id: 28, category: 'lifestyle', show: 'Jersey Shore', question: "Will Jersey Shore Family Vacation film another international trip this season?", context: "The cast has filmed in Italy and the Bahamas before. Producers have been teasing a new location.", yes: 53, no: 47, volume: '$3.9k', traders: 155, comments: 41, ends: 'Aug 1, 2026', status: 'open' },
-]; // end _unusedMarkets
+];
 
 // ========== MOCK COMMUNITY USERS ==========
 const initialCommunityUsers = [
@@ -715,40 +715,20 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
   const approveSubmission = async (subId) => {
     const sub = submissions.find(s => s.id === subId);
     if (!sub) return;
-    // Save to Supabase markets table
-    const { data: newMarketRow, error } = await supabase.from('markets').insert({
+    const newMarket = {
+      id: Math.max.apply(null, markets.map(m => m.id)) + 1,
       category: sub.category,
       show: sub.show || '',
       question: sub.question,
       context: sub.context || '',
-      yes: 50,
-      no: 50,
+      yes: 50, no: 50,
       volume: '$0',
       traders: 0,
       comments: 0,
       ends: sub.endsHint || 'TBD',
       status: 'open',
-      trending: false,
-    }).select().single();
-    if (error) { alert('Failed to save market: ' + error.message); return; }
-    // Add to local state
-    if (newMarketRow) {
-      setMarkets(prev => [...prev, {
-        id: newMarketRow.id,
-        category: newMarketRow.category,
-        show: newMarketRow.show,
-        question: newMarketRow.question,
-        context: newMarketRow.context,
-        yes: newMarketRow.yes,
-        no: newMarketRow.no,
-        volume: newMarketRow.volume,
-        traders: newMarketRow.traders,
-        comments: newMarketRow.comments,
-        trending: newMarketRow.trending,
-        ends: newMarketRow.ends,
-        status: newMarketRow.status,
-      }]);
-    }
+    };
+    setMarkets(prev => [...prev, newMarket]);
     setSubmissions(prev => prev.map(s => s.id === subId ? { ...s, status: 'approved' } : s));
     if (sub.supabaseId) {
       await supabase.from('submissions').update({ status: 'approved' }).eq('id', sub.supabaseId);
@@ -1228,27 +1208,6 @@ export default function Clarion() {
   const [showSuggestMarket, setShowSuggestMarket] = useState(false);
 
   useEffect(() => {
-  // Load markets from Supabase for everyone (not just logged-in users)
-  supabase.from('markets').select('*').eq('status', 'open').then(({ data: marketRows }) => {
-    if (marketRows && marketRows.length > 0) {
-      setMarkets(marketRows.map(m => ({
-        id: m.id,
-        category: m.category,
-        show: m.show,
-        question: m.question,
-        context: m.context,
-        yes: m.yes,
-        no: m.no,
-        volume: m.volume,
-        traders: m.traders,
-        comments: m.comments,
-        trending: m.trending,
-        ends: m.ends,
-        status: m.status,
-      })));
-    }
-  });
-
   supabase.auth.getSession().then(async ({ data: { session } }) => {
     if (session?.user) {
       const { data: profile } = await supabase
@@ -1451,7 +1410,7 @@ if (authLoading) {
         <LandingPage
           onLogin={() => setAuthScreen('login')}
           onSignup={() => setAuthScreen('signup')}
-          markets={markets}
+          markets={initialMarkets}
           categories={categories}
         />
         {authScreen && (
