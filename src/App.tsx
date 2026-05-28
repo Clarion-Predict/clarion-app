@@ -1749,7 +1749,7 @@ if (authLoading) {
               <label className="block text-xs uppercase text-stone-500 mb-2">Amount</label>
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl font-serif text-stone-900">$</span>
-                <input type="number" value={tradeAmount} onChange={e => setTradeAmount(Math.max(1, parseInt(e.target.value) || 0))} className="text-3xl font-serif text-stone-900 bg-transparent border-b border-stone-200 w-full focus:outline-none pb-1" />
+                <input type="number" value={tradeAmount || ''} onChange={e => setTradeAmount(parseInt(e.target.value) || 0)} className="text-3xl font-serif text-stone-900 bg-transparent border-b border-stone-200 w-full focus:outline-none pb-1" />
               </div>
               <div className="flex gap-2 mb-4">{[5, 10, 25, 50].map(amt => <button key={amt} onClick={() => setTradeAmount(amt)} className="px-3 py-1 text-xs rounded-full bg-stone-100 text-stone-700">${amt}</button>)}</div>
               <div className="bg-stone-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">
