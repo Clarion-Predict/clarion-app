@@ -1215,7 +1215,15 @@ export default function Clarion() {
   const [tradeSide, setTradeSide] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    const validTabs = ['home', 'markets', 'feed', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+    return validTabs.includes(hash) ? hash : 'home';
+  });
+  const navigateTo = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab === 'home' ? '' : tab;
+  };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -1690,7 +1698,7 @@ if (authLoading) {
                         <div className="font-medium text-white">@{user.username || user.email.split('@')[0]}</div>
                         <div className="text-stone-500">{user.email}</div>
                       </div>
-                      <button onClick={() => { setActiveTab('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
+                      <button onClick={() => { navigateTo('profile'); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><UserCircle className="w-4 h-4" /> My profile</button>
 {isAdmin && (
   <button onClick={() => { setShowAdmin(true); setShowDevMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-800 text-sm text-left"><Settings className="w-4 h-4" /> Admin console</button>
 )}                      <div className="border-t border-stone-800 mt-1 pt-1">
@@ -1704,7 +1712,7 @@ if (authLoading) {
           </div>
           <div className="flex gap-1 text-sm overflow-x-auto pb-0.5">
             {tabs.map(t => (
-              <button key={t} onClick={() => setActiveTab(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
+              <button key={t} onClick={() => navigateTo(t)} className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
                 {t === 'feed' && <Users className="w-3 h-3" />}
                 {t === 'leaderboard' && <Trophy className="w-3 h-3" />}
                 {t === 'profile' && <UserCircle className="w-3 h-3" />}
@@ -1734,7 +1742,7 @@ if (authLoading) {
                 <div className="flex-1">
                   <h3 className="text-base font-serif text-stone-900 mb-1">The Clarion Pledge</h3>
                   <p className="text-sm text-stone-700 mb-3 leading-relaxed">1 percent of every trade supports women's health, mental health, economic empowerment, and reproductive rights. Community total: <span className="font-medium text-stone-900">${communityImpact.totalGiven.toLocaleString()}</span>.</p>
-                  <button onClick={() => setActiveTab('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
+                  <button onClick={() => navigateTo('impact')} className="text-xs font-medium text-stone-900 hover:underline">See the impact →</button>
                 </div>
               </div>
             </div>
@@ -1814,7 +1822,7 @@ if (authLoading) {
                 <h1 className="text-xl md:text-2xl font-serif text-stone-900">Activity feed</h1>
                 <p className="text-sm text-stone-500">People you follow · 280 char comments</p>
               </div>
-              <button onClick={() => setActiveTab('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
+              <button onClick={() => navigateTo('leaderboard')} className="text-xs text-stone-500 underline">Find traders</button>
             </div>
             <ActivityFeed communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} />
           </div>
@@ -1849,7 +1857,7 @@ if (authLoading) {
             ) : (
               <div className="bg-white rounded-3xl p-8 border border-stone-100 text-center">
                 <h3 className="text-lg font-serif text-stone-900 mb-2">No positions yet</h3>
-                <button onClick={() => setActiveTab('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
+                <button onClick={() => navigateTo('markets')} className="px-6 py-2 rounded-full bg-stone-900 text-white text-sm">Browse markets</button>
               </div>
             )}
           </div>
