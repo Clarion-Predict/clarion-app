@@ -6,6 +6,9 @@ const Beaker = FlaskConical;
 const HandHeart = Heart;
 const BadgeCheck = Award;
 
+// ========== FEATURE FLAGS ==========
+const SHOW_PLEDGE = false; // Set to true when real money launches
+
 // ========== DATA ==========
 const categories = [
   { id: 'all', name: 'All', icon: Sparkles },
@@ -393,11 +396,10 @@ const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, ma
             <div className="flex items-center gap-1 text-sm text-stone-500 mb-4">
               <AtSign className="w-3.5 h-3.5" />{profileUser.username}
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Accuracy', value: profileUser.accuracy + '%', highlight: profileUser.accuracy >= 65 },
                 { label: 'Total trades', value: profileUser.totalTrades },
-                { label: 'Impact score', value: profileUser.impactScore },
               ].map((s, i) => (
                 <div key={i} className={`p-3 rounded-2xl text-center ${s.highlight ? 'bg-emerald-50 border border-emerald-100' : 'bg-stone-50'}`}>
                   <div className={`text-xl font-serif ${s.highlight ? 'text-emerald-700' : 'text-stone-900'}`}>{s.value}</div>
@@ -405,7 +407,7 @@ const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, ma
                 </div>
               ))}
             </div>
-            {!profileUser.causePrivate && causeInfo && (
+            {SHOW_PLEDGE && !profileUser.causePrivate && causeInfo && (
               <div className="mt-4 flex items-center gap-2 text-xs text-stone-500">
                 <HandHeart className="w-3.5 h-3.5 text-amber-600" />
                 <span>Supports <span className="text-stone-700 font-medium">{causeInfo.name}</span></span>
@@ -450,7 +452,7 @@ const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, ma
                 { label: 'Leaderboard rank', value: '#' + profileUser.leaderboardRank },
                 { label: 'Accuracy rate', value: profileUser.accuracy + '%' },
                 { label: 'Total trades placed', value: profileUser.totalTrades },
-                { label: 'Impact score', value: profileUser.impactScore },
+                ...(SHOW_PLEDGE ? [{ label: 'Impact score', value: profileUser.impactScore }] : []),
               ].map((row, i) => (
                 <div key={i} className="flex justify-between items-center py-2 border-b border-stone-50 last:border-0">
                   <span className="text-sm text-stone-500">{row.label}</span>
@@ -634,7 +636,7 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
                     {item.won ? 'Won' : 'Lost'}
                   </span>
                 )}
-                {causeInfo && (
+                {SHOW_PLEDGE && causeInfo && (
                   <span className="flex items-center gap-1">
                     <HandHeart className="w-3 h-3 text-amber-500" />
                     <span>1% → {causeInfo.name}</span>
@@ -796,7 +798,7 @@ const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile, onFo
   return (
     <div>
       <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
-        {[['rank', 'Overall rank'], ['accuracy', 'Accuracy'], ['impact', 'Impact score']].map(([key, label]) => (
+        {[['rank', 'Overall rank'], ['accuracy', 'Accuracy'], ...(SHOW_PLEDGE ? [['impact', 'Impact score']] : [])].map(([key, label]) => (
           <button key={key} onClick={() => setSortBy(key)} className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap ${sortBy === key ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200'}`}>{label}</button>
         ))}
       </div>
@@ -818,10 +820,12 @@ const LeaderboardTab = ({ communityUsers, setCommunityUsers, onViewProfile, onFo
                 <div className="text-sm font-serif text-stone-900">{u.accuracy}%</div>
                 <div className="text-xs text-stone-400">accuracy</div>
               </div>
+              {SHOW_PLEDGE && (
               <div className="text-right flex-shrink-0 hidden md:block">
                 <div className="text-sm font-serif text-amber-700">{u.impactScore}</div>
                 <div className="text-xs text-stone-400">impact</div>
               </div>
+              )}
               <button
                 onClick={() => onFollowToggle(u.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 ${u.following ? 'bg-stone-100 text-stone-600' : 'bg-stone-900 text-white'}`}
@@ -889,11 +893,10 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
               <button onClick={() => setEditingBio(true)} className="text-xs text-stone-400 hover:text-stone-700 flex-shrink-0 flex items-center gap-1"><Edit3 className="w-3 h-3" /> Edit</button>
             </div>
           )}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Practice balance', value: '$' + balance.toFixed(2) },
               { label: 'Accuracy', value: userProfile?.totalResolved > 0 ? userProfile.accuracy + '%' : '—' },
-              { label: 'Total pledged', value: '$' + totalPledged.toFixed(2) },
             ].map((s, i) => (
               <div key={i} className="p-3 rounded-2xl bg-stone-50 text-center">
                 <div className="text-lg font-serif text-stone-900">{s.value}</div>
@@ -904,6 +907,7 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
         </div>
       </div>
 
+      {SHOW_PLEDGE && (
       <div className="bg-white rounded-2xl border border-stone-100 p-5 mb-4">
         <h3 className="text-sm font-medium text-stone-900 mb-1">The Clarion Pledge</h3>
         <p className="text-xs text-stone-500 mb-4">1% of every trade you place goes to your chosen cause.</p>
@@ -940,13 +944,14 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
           {causePrivate ? 'Cause is private — tap to make public' : 'Cause is public — tap to make private'}
         </button>
       </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-stone-100 p-5 mb-4">
         <h3 className="text-sm font-medium text-stone-900 mb-4">Privacy settings</h3>
         <div className="space-y-3">
           {[
             { label: 'Hide bet amounts', sub: 'Others see your direction (YES/NO) but not how much you wagered', state: amountsPrivate, toggle: () => setAmountsPrivate(!amountsPrivate) },
-            { label: 'Hide cause donation', sub: 'Your chosen cause will not appear on your profile or activity feed', state: causePrivate, toggle: () => setCausePrivate(!causePrivate) },
+            ...(SHOW_PLEDGE ? [{ label: 'Hide cause donation', sub: 'Your chosen cause will not appear on your profile or activity feed', state: causePrivate, toggle: () => setCausePrivate(!causePrivate) }] : []),
           ].map((s, i) => (
             <div key={i} className="flex items-center gap-3 py-2 border-b border-stone-50 last:border-0">
               <div className="flex-1">
@@ -1373,7 +1378,7 @@ const LandingPage = ({ onLogin, onSignup, markets, categories }) => {
             Back your reality TV takes with something real.
           </h1>
           <p className="text-lg text-stone-600 leading-relaxed mb-8">
-            Clarion is a prediction market for reality TV fans. Trade on Bachelor rose ceremonies, Survivor tribal councils, Housewives reunions, and more. 1% of every trade goes to causes that matter.
+            Clarion is a prediction market for reality TV fans. Trade on Bachelor rose ceremonies, Survivor tribal councils, Housewives reunions, and more.
           </p>
           <div className="flex items-center gap-3">
             <button onClick={onSignup} className="px-6 py-3 rounded-full bg-stone-900 text-white font-medium flex items-center gap-2">
@@ -1415,7 +1420,7 @@ const LandingPage = ({ onLogin, onSignup, markets, categories }) => {
           {[
             { icon: Tv, title: 'Reality TV markets', desc: 'Bachelor, Survivor, Traitors, Housewives, Love Island and more — markets that resolve weekly.' },
             { icon: Trophy, title: 'Leaderboard & profiles', desc: 'Track your accuracy, follow other traders, see who called it right before anyone else.' },
-            { icon: HandHeart, title: 'The Clarion Pledge', desc: '1% of every trade supports women\'s health, mental health, economic empowerment, and reproductive rights.' },
+            ...(SHOW_PLEDGE ? [{ icon: HandHeart, title: 'The Clarion Pledge', desc: '1% of every trade supports women\'s health, mental health, economic empowerment, and reproductive rights.' }] : []),
           ].map((f, i) => (
             <div key={i} className="p-5 rounded-2xl bg-white border border-stone-100">
               <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
@@ -1511,6 +1516,7 @@ const Onboarding = ({ user, onComplete }) => {
   const [step, setStep] = useState(1);
   const [bio, setBio] = useState('');
   const [selectedCause, setSelectedCause] = useState('');
+  const totalSteps = SHOW_PLEDGE ? 2 : 1;
 
   return (
     <div className="min-h-screen bg-amber-50/40 flex items-center justify-center p-4">
@@ -1518,14 +1524,16 @@ const Onboarding = ({ user, onComplete }) => {
         <div className="flex items-center gap-2 mb-6">
           <Logo size={28} />
           <span className="font-serif text-stone-900">Clarion</span>
-          <span className="ml-auto text-xs text-stone-400">Step {step} of 2</span>
+          {SHOW_PLEDGE && <span className="ml-auto text-xs text-stone-400">Step {step} of {totalSteps}</span>}
         </div>
 
+        {SHOW_PLEDGE && (
         <div className="flex gap-1 mb-8">
           {[1, 2].map(s => (
             <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-stone-900' : 'bg-stone-100'}`} />
           ))}
         </div>
+        )}
 
         {step === 1 && (
           <div>
@@ -1536,11 +1544,14 @@ const Onboarding = ({ user, onComplete }) => {
               <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={160} placeholder="Reality TV obsessive, Survivor superfan, bad at keeping spoilers to myself…" className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none resize-none text-stone-900" rows={3} />
               <div className="text-right text-xs text-stone-400 mt-1">{160 - bio.length}</div>
             </div>
-            <button onClick={() => setStep(2)} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium">Continue</button>
+            {SHOW_PLEDGE
+              ? <button onClick={() => setStep(2)} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium">Continue</button>
+              : <button onClick={() => onComplete({ bio, cause: '' })} className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium">Start trading</button>
+            }
           </div>
         )}
 
-        {step === 2 && (
+        {SHOW_PLEDGE && step === 2 && (
           <div>
             <h2 className="text-2xl font-serif text-stone-900 mb-1">The Clarion Pledge</h2>
             <p className="text-sm text-stone-500 mb-6">1% of every trade you place goes to a cause you choose. Pick yours.</p>
@@ -2098,7 +2109,7 @@ if (authLoading) {
               <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"><Check className="w-8 h-8 text-emerald-600" /></div>
               <h3 className="text-xl font-serif text-stone-900 mb-2">Position opened</h3>
               <p className="text-stone-600 text-sm mb-3">{shares} shares of {tradeSide.toUpperCase()} at {price} cents</p>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-900"><HandHeart className="w-3 h-3" /><span>1 percent pledged to {cause.name}</span></div>
+              {SHOW_PLEDGE && <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-900"><HandHeart className="w-3 h-3" /><span>1 percent pledged to {cause.name}</span></div>}
             </div>
           ) : (
             <div>
@@ -2125,10 +2136,12 @@ if (authLoading) {
                 <div className="flex justify-between"><span className="text-stone-500">If right</span><span className="text-emerald-600 font-medium">+${shares - tradeAmount}</span></div>
                 <div className="flex justify-between pt-2 border-t border-stone-200"><span className="text-stone-500">Balance</span><span className="text-stone-900 font-medium">${balance.toFixed(2)}</span></div>
               </div>
+              {SHOW_PLEDGE && (
               <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 border border-amber-100 mb-5">
                 <HandHeart className="w-4 h-4 text-amber-700" />
                 <div className="flex-1 text-xs text-amber-900 leading-snug"><span className="font-medium">1 percent of this trade (${pledgeAmount.toFixed(2)})</span> supports {cause.name}</div>
               </div>
+              )}
               <button onClick={handleTrade} disabled={tradeAmount > balance} className={`w-full py-4 rounded-2xl font-medium text-white ${tradeSide === 'yes' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
                 {tradeAmount > balance ? 'Insufficient balance' : 'Confirm practice trade'}
               </button>
@@ -2166,10 +2179,12 @@ if (authLoading) {
                 <div className="text-2xl md:text-3xl font-serif text-rose-800">{selectedMarket.no} cents</div>
               </button>
             </div>
+            {SHOW_PLEDGE && (
             <div className="pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-500">
               <HandHeart className="w-3.5 h-3.5 text-amber-600" />
               <span>1 percent of every trade supports {causesByCategory[selectedMarket.category].name}</span>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -2179,7 +2194,7 @@ if (authLoading) {
   const filtered = markets.filter(m => (activeCategory === 'all' || m.category === activeCategory) && m.status === 'open');
   const trending = markets.filter(m => m.trending && m.status === 'open').slice(0, 3);
 
-  const tabs = ['home', 'markets', 'feed', 'following', 'leaderboard', 'positions', 'profile', 'impact', 'about'];
+  const tabs = ['home', 'markets', 'feed', 'following', 'leaderboard', 'positions', 'profile', 'about'];
 
   return (
     <div className="min-h-screen bg-amber-50/40 pb-24 md:pb-6">
@@ -2315,6 +2330,7 @@ if (authLoading) {
                 <button onClick={() => setSelectedMarket(trending[0])} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-200 text-stone-900 text-sm font-medium">Make a prediction <ChevronRight className="w-4 h-4" /></button>
               </div>
             </div>
+            {SHOW_PLEDGE && (
             <div className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-200">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center flex-shrink-0"><HandHeart className="w-6 h-6 text-stone-800" /></div>
@@ -2325,6 +2341,7 @@ if (authLoading) {
                 </div>
               </div>
             </div>
+            )}
             <button
               onClick={() => setShowSuggestMarket(true)}
               className="w-full flex items-center justify-between p-4 md:p-5 rounded-2xl bg-white border border-stone-100 hover:border-stone-200 mb-6"

@@ -2040,11 +2040,10 @@ if (authLoading) {
   const shares = Math.floor(tradeAmount / (price / 100));
 
   // Calculate new volumes and prices
-  const LIQUIDITY_SEED = 50;
   const newYesVolume = (selectedMarket.yes_volume || 0) + (tradeSide === 'yes' ? cost : 0);
   const newNoVolume = (selectedMarket.no_volume || 0) + (tradeSide === 'no' ? cost : 0);
-  const totalVolume = (newYesVolume + LIQUIDITY_SEED) + (newNoVolume + LIQUIDITY_SEED);
-  const newYesPrice = Math.round(((newYesVolume + LIQUIDITY_SEED) / totalVolume) * 100);
+  const totalVolume = newYesVolume + newNoVolume;
+  const newYesPrice = totalVolume > 0 ? Math.round((newYesVolume / totalVolume) * 100) : 50;
   const newNoPrice = 100 - newYesPrice;
 
   setBalance(newBalance);
