@@ -468,7 +468,7 @@ const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, ma
 // ========== ACTIVITY FEED TAB ==========
 const EMOJIS = ['🔥', '💯', '👀', '😮', '💀'];
 
-const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, authUser, onNewNotification }) => {
+const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, authUser }) => {
   const [comments, setComments] = useState<Record<string, any[]>>({});
   const [reactions, setReactions] = useState<Record<string, Record<string, string[]>>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -516,7 +516,7 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
     loadData();
   }, [followed.length]);
 
-  const submitComment = async (key, market) => {
+  const submitComment = async (key) => {
     const text = (commentText[key] || '').trim();
     if (!text || !authUser) return;
     const { data: newComment } = await supabase.from('comments').insert({
@@ -529,22 +529,9 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
       setComments(prev => ({ ...prev, [key]: [...(prev[key] || []), newComment] }));
     }
     setCommentText(prev => ({ ...prev, [key]: '' }));
-    // Notify trade owner (extract user_id from trade_key: format is userId_marketId)
-    const ownerId = key.split('_')[0];
-    if (ownerId && ownerId !== authUser.id) {
-      await supabase.from('notifications').insert({
-        user_id: ownerId,
-        actor_username: authUser.username,
-        type: 'comment',
-        trade_key: key,
-        market,
-        emoji: null,
-      });
-      if (onNewNotification) onNewNotification();
-    }
   };
 
-  const toggleReaction = async (key, emoji, market) => {
+  const toggleReaction = async (key, emoji) => {
     if (!authUser) return;
     const existing = reactions[key]?.[emoji] || [];
     const hasReacted = existing.includes(authUser.id);
@@ -569,19 +556,6 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
           [emoji]: [...(prev[key]?.[emoji] || []), authUser.id],
         },
       }));
-      // Notify trade owner
-      const ownerId = key.split('_')[0];
-      if (ownerId && ownerId !== authUser.id) {
-        await supabase.from('notifications').insert({
-          user_id: ownerId,
-          actor_username: authUser.username,
-          type: 'reaction',
-          trade_key: key,
-          market,
-          emoji,
-        });
-        if (onNewNotification) onNewNotification();
-      }
     }
   };
 
@@ -650,7 +624,7 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
                   return (
                     <button
                       key={emoji}
-                      onClick={() => toggleReaction(item.key, emoji, item.market)}
+                      onClick={() => toggleReaction(item.key, emoji)}
                       className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs border transition-all ${reacted ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-stone-50 border-stone-200 text-stone-500 hover:border-stone-300'}`}
                     >
                       <span>{emoji}</span>
@@ -685,7 +659,7 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
                   maxLength={280}
                   value={commentText[item.key] || ''}
                   onChange={e => setCommentText(prev => ({ ...prev, [item.key]: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && submitComment(item.key, item.market)}
+                  onKeyDown={e => e.key === 'Enter' && submitComment(item.key)}
                   placeholder="Add a comment…"
                   className="w-full bg-stone-50 rounded-xl px-3 py-2 text-xs text-stone-800 placeholder-stone-400 focus:outline-none pr-16"
                 />
@@ -693,7 +667,7 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
                   {(commentText[item.key] || '').length > 0 && (
                     <span className="text-xs text-stone-400">{280 - (commentText[item.key] || '').length}</span>
                   )}
-                  <button onClick={() => submitComment(item.key, item.market)} className="text-stone-400 hover:text-stone-700">
+                  <button onClick={() => submitComment(item.key)} className="text-stone-400 hover:text-stone-700">
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1608,8 +1582,6 @@ export default function Clarion() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSuggestMarket, setShowSuggestMarket] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
   // Load markets from Supabase for everyone (not just logged-in users)
@@ -1715,7 +1687,6 @@ export default function Clarion() {
         }
       }
       await loadLeaderboard(session.user.id);
-      await loadNotifications(session.user.id);
       setAuthLoading(false);
     });
   }, []);
@@ -1801,7 +1772,6 @@ export default function Clarion() {
         .eq('user_id', data.user.id)
         .maybeSingle();
       setIsAdmin(!!adminRow);
-      await loadNotifications(data.user.id);
       setAuthScreen(null);
     }
   }
@@ -1903,22 +1873,6 @@ export default function Clarion() {
           positions: followedPositionsMap[p.user_id] || [],
         })));
     }
-  };
-
-  const loadNotifications = async (userId: string) => {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(30);
-    if (data) setNotifications(data);
-  };
-
-  const markAllRead = async () => {
-    if (!authUser) return;
-    await supabase.from('notifications').update({ read: true }).eq('user_id', authUser.id).eq('read', false);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const handleLogout = async () => {
@@ -2208,51 +2162,6 @@ if (authLoading) {
                 <span className="font-medium text-stone-900">${balance.toFixed(2)}</span>
               </div>
               <div className="relative">
-                <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) markAllRead(); }} className="relative w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-stone-200">
-                  <Bell className="w-4 h-4" />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-xs flex items-center justify-center font-medium">
-                      {notifications.filter(n => !n.read).length > 9 ? '9+' : notifications.filter(n => !n.read).length}
-                    </span>
-                  )}
-                </button>
-                {showNotifications && (
-                  <div>
-                    <div className="fixed inset-0 z-20" onClick={() => setShowNotifications(false)} />
-                    <div className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-stone-100 z-30 overflow-hidden">
-                      <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-                        <span className="text-sm font-medium text-stone-900">Notifications</span>
-                        {notifications.length > 0 && (
-                          <button onClick={markAllRead} className="text-xs text-stone-400 hover:text-stone-600">Mark all read</button>
-                        )}
-                      </div>
-                      <div className="max-h-80 overflow-y-auto">
-                        {notifications.length === 0 && (
-                          <div className="p-6 text-center text-sm text-stone-400">No notifications yet</div>
-                        )}
-                        {notifications.map(n => (
-                          <div key={n.id} className={`px-4 py-3 border-b border-stone-50 last:border-0 ${!n.read ? 'bg-amber-50/50' : ''}`}>
-                            <div className="flex items-start gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center text-xs font-medium text-stone-800 flex-shrink-0">
-                                {n.actor_username?.[0]?.toUpperCase()}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-stone-700 leading-snug">
-                                  <span className="font-medium">@{n.actor_username}</span>
-                                  {n.type === 'comment' ? ' commented on your trade' : ` reacted ${n.emoji} to your trade`}
-                                </p>
-                                <p className="text-xs text-stone-400 mt-0.5 truncate">{n.market}</p>
-                              </div>
-                              {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-1" />}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="relative">
                 <button onClick={() => setShowDevMenu(!showDevMenu)} className="flex items-center gap-2">
                   <Avatar username={user.username || user.email} size={32} />
                 </button>
@@ -2390,7 +2299,7 @@ if (authLoading) {
               </div>
               <button onClick={() => setShowSearch(true)} className="text-xs text-stone-500 underline">Find traders</button>
             </div>
-            <ActivityFeed communityUsers={communityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} authUser={authUser} onNewNotification={() => loadNotifications(authUser?.id)} />
+            <ActivityFeed communityUsers={communityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} authUser={authUser} />
           </div>
         )}
 
