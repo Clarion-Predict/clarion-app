@@ -2233,29 +2233,16 @@ if (authLoading) {
                         {notifications.map(n => (
                           <div key={n.id} className={`px-4 py-3 border-b border-stone-50 last:border-0 ${!n.read ? 'bg-amber-50/50' : ''}`}>
                             <div className="flex items-start gap-2">
-                              <button
-                                onClick={() => {
-                                  const actor = communityUsers.find(u => u.username === n.actor_username);
-                                  if (actor) setViewingProfile(actor);
-                                  setShowNotifications(false);
-                                }}
-                                className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center text-xs font-medium text-stone-800 flex-shrink-0 hover:opacity-80"
-                              >
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center text-xs font-medium text-stone-800 flex-shrink-0">
                                 {n.actor_username?.[0]?.toUpperCase()}
-                              </button>
-                              <button
-                                className="flex-1 min-w-0 text-left"
-                                onClick={() => {
-                                  setShowNotifications(false);
-                                  navigateTo('feed');
-                                }}
-                              >
+                              </div>
+                              <div className="flex-1 min-w-0">
                                 <p className="text-xs text-stone-700 leading-snug">
                                   <span className="font-medium">@{n.actor_username}</span>
                                   {n.type === 'comment' ? ' commented on your trade' : ` reacted ${n.emoji} to your trade`}
                                 </p>
                                 <p className="text-xs text-stone-400 mt-0.5 truncate">{n.market}</p>
-                              </button>
+                              </div>
                               {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-1" />}
                             </div>
                           </div>
