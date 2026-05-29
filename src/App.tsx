@@ -466,21 +466,97 @@ const UserProfileView = ({ profileUser, onClose, onFollowToggle, myPositions, ma
 };
 
 // ========== ACTIVITY FEED TAB ==========
-const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfile, onViewMarket }) => {
-  const [comments, setComments] = useState(mockActivityComments);
-  const [commentText, setCommentText] = useState({});
+const EMOJIS = ['🔥', '💯', '👀', '😮', '💀'];
+
+const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, authUser }) => {
+  const [comments, setComments] = useState<Record<string, any[]>>({});
+  const [reactions, setReactions] = useState<Record<string, Record<string, string[]>>>({});
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
 
   const followed = communityUsers.filter(u => u.following);
   const feedItems = followed.flatMap(u =>
-    u.positions.map(p => ({ ...p, user: u, key: u.id + '_' + p.marketId }))
+    (u.positions || []).map(p => ({ ...p, user: u, key: u.id + '_' + p.marketId }))
   ).sort((a, b) => (a.ts > b.ts ? -1 : 1));
 
-  const submitComment = (key) => {
+  console.log('followed users:', followed.map(u => ({ username: u.username, positions: u.positions?.length })));
+  console.log('feedItems:', feedItems.length);
+
+  // Load comments and reactions from Supabase
+  useEffect(() => {
+    if (feedItems.length === 0) { setLoading(false); return; }
+    const keys = feedItems.map(i => i.key);
+
+    const loadData = async () => {
+      const [{ data: commentRows }, { data: reactionRows }] = await Promise.all([
+        supabase.from('comments').select('*').in('trade_key', keys).order('created_at', { ascending: true }),
+        supabase.from('reactions').select('*').in('trade_key', keys),
+      ]);
+
+      if (commentRows) {
+        const grouped: Record<string, any[]> = {};
+        commentRows.forEach(c => {
+          if (!grouped[c.trade_key]) grouped[c.trade_key] = [];
+          grouped[c.trade_key].push(c);
+        });
+        setComments(grouped);
+      }
+
+      if (reactionRows) {
+        const grouped: Record<string, Record<string, string[]>> = {};
+        reactionRows.forEach(r => {
+          if (!grouped[r.trade_key]) grouped[r.trade_key] = {};
+          if (!grouped[r.trade_key][r.emoji]) grouped[r.trade_key][r.emoji] = [];
+          grouped[r.trade_key][r.emoji].push(r.user_id);
+        });
+        setReactions(grouped);
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, [followed.length]);
+
+  const submitComment = async (key) => {
     const text = (commentText[key] || '').trim();
-    if (!text) return;
-    const newComment = { id: 'c' + Date.now(), author: 'demo', text, ts: 'just now' };
-    setComments(prev => ({ ...prev, [key]: [...(prev[key] || []), newComment] }));
+    if (!text || !authUser) return;
+    const { data: newComment } = await supabase.from('comments').insert({
+      user_id: authUser.id,
+      username: authUser.username,
+      trade_key: key,
+      text,
+    }).select().single();
+    if (newComment) {
+      setComments(prev => ({ ...prev, [key]: [...(prev[key] || []), newComment] }));
+    }
     setCommentText(prev => ({ ...prev, [key]: '' }));
+  };
+
+  const toggleReaction = async (key, emoji) => {
+    if (!authUser) return;
+    const existing = reactions[key]?.[emoji] || [];
+    const hasReacted = existing.includes(authUser.id);
+    if (hasReacted) {
+      await supabase.from('reactions').delete()
+        .eq('user_id', authUser.id)
+        .eq('trade_key', key)
+        .eq('emoji', emoji);
+      setReactions(prev => ({
+        ...prev,
+        [key]: {
+          ...(prev[key] || {}),
+          [emoji]: (prev[key]?.[emoji] || []).filter(id => id !== authUser.id),
+        },
+      }));
+    } else {
+      await supabase.from('reactions').insert({ user_id: authUser.id, trade_key: key, emoji });
+      setReactions(prev => ({
+        ...prev,
+        [key]: {
+          ...(prev[key] || {}),
+          [emoji]: [...(prev[key]?.[emoji] || []), authUser.id],
+        },
+      }));
+    }
   };
 
   if (followed.length === 0) {
@@ -489,7 +565,16 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
         <Users className="w-10 h-10 text-stone-200 mx-auto mb-3" />
         <h3 className="text-lg font-serif text-stone-900 mb-2">No one followed yet</h3>
         <p className="text-sm text-stone-500 mb-5">Follow other traders to see their activity here.</p>
-        <button onClick={() => onViewProfile(communityUsers[0])} className="px-5 py-2 rounded-full bg-stone-900 text-white text-sm">Find traders</button>
+      </div>
+    );
+  }
+
+  if (feedItems.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <Activity className="w-10 h-10 text-stone-200 mx-auto mb-3" />
+        <h3 className="text-lg font-serif text-stone-900 mb-2">No activity yet</h3>
+        <p className="text-sm text-stone-500">When the people you follow place trades, they'll appear here.</p>
       </div>
     );
   }
@@ -498,6 +583,7 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
     <div className="space-y-4">
       {feedItems.map(item => {
         const itemComments = comments[item.key] || [];
+        const itemReactions = reactions[item.key] || {};
         const causeInfo = !item.user.causePrivate ? causeOptions.find(c => c.id === item.user.cause) : null;
         return (
           <div key={item.key} className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
@@ -511,12 +597,17 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
                   <div className="text-xs text-stone-400">{item.ts}</div>
                 </div>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${item.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                  {item.side.toUpperCase()}
+                  {item.side?.toUpperCase()}
                 </span>
               </div>
               <p className="text-sm font-serif text-stone-900 leading-snug mb-3">{item.market}</p>
-              <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap">
-                <span>${item.amount} wagered</span>
+              <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap mb-3">
+                <span>${item.amount?.toFixed(2)} wagered</span>
+                {item.resolved && (
+                  <span className={`px-2 py-0.5 rounded-full font-medium ${item.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                    {item.won ? 'Won' : 'Lost'}
+                  </span>
+                )}
                 {causeInfo && (
                   <span className="flex items-center gap-1">
                     <HandHeart className="w-3 h-3 text-amber-500" />
@@ -524,15 +615,34 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
                   </span>
                 )}
               </div>
+
+              {/* Reactions */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {EMOJIS.map(emoji => {
+                  const count = itemReactions[emoji]?.length || 0;
+                  const reacted = itemReactions[emoji]?.includes(authUser?.id);
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => toggleReaction(item.key, emoji)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs border transition-all ${reacted ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-stone-50 border-stone-200 text-stone-500 hover:border-stone-300'}`}
+                    >
+                      <span>{emoji}</span>
+                      {count > 0 && <span className="font-medium">{count}</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
+            {/* Comments */}
             {itemComments.length > 0 && (
               <div className="border-t border-stone-50 px-4 py-3 space-y-3">
                 {itemComments.map(c => (
                   <div key={c.id} className="flex gap-2">
-                    <Avatar username={c.author} size={24} />
+                    <Avatar username={c.username} size={24} />
                     <div className="flex-1 bg-stone-50 rounded-xl px-3 py-2">
-                      <span className="text-xs font-medium text-stone-700">@{c.author} </span>
+                      <span className="text-xs font-medium text-stone-700">@{c.username} </span>
                       <span className="text-xs text-stone-600">{c.text}</span>
                     </div>
                   </div>
@@ -540,8 +650,9 @@ const ActivityFeed = ({ communityUsers, setCommunityUsers, markets, onViewProfil
               </div>
             )}
 
+            {/* Comment input */}
             <div className="border-t border-stone-50 px-4 py-3 flex gap-2">
-              <Avatar username="demo" size={28} />
+              <Avatar username={authUser?.username} size={28} />
               <div className="flex-1 relative">
                 <input
                   type="text"
@@ -1556,7 +1667,7 @@ export default function Clarion() {
           const { data: submissionRows } = await supabase
             .from('submissions')
             .select('*')
-            .order('created_at', { ascending: false });
+            
           if (submissionRows) {
             setSubmissions(submissionRows.map(s => ({
               id: s.id,
@@ -1706,6 +1817,7 @@ export default function Clarion() {
         if (followRows) {
           followRows.forEach(f => followingIds.add(f.following_id));
         }
+        console.log('followRows:', followRows, 'userId:', userId, 'followingIds:', Array.from(followingIds));
       }
       // Load who follows current user
       let followerIds = new Set();
@@ -1722,11 +1834,12 @@ export default function Clarion() {
       // Load positions for followed users
       let followedPositionsMap = {};
       if (followingIds.size > 0) {
-        const { data: followedPositions } = await supabase
+        const { data: followedPositions, error: posError } = await supabase
           .from('positions')
-          .select('user_id, market_id, market, category, side, invested, created_at, resolved, won')
+          .select('*')
           .in('user_id', Array.from(followingIds))
           .order('created_at', { ascending: false });
+        console.log('followedPositions:', followedPositions, 'posError:', posError);
         if (followedPositions) {
           followedPositions.forEach(p => {
             if (!followedPositionsMap[p.user_id]) followedPositionsMap[p.user_id] = [];
@@ -2186,7 +2299,7 @@ if (authLoading) {
               </div>
               <button onClick={() => setShowSearch(true)} className="text-xs text-stone-500 underline">Find traders</button>
             </div>
-            <ActivityFeed communityUsers={communityUsers} setCommunityUsers={setCommunityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} />
+            <ActivityFeed communityUsers={communityUsers} markets={markets} onViewProfile={setViewingProfile} onViewMarket={setSelectedMarket} authUser={authUser} />
           </div>
         )}
 
