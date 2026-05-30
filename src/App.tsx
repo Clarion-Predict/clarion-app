@@ -1824,9 +1824,12 @@ export default function Clarion() {
             })));
           }
         }
+        await loadLeaderboard(session.user.id);
+        await loadNotifications(session.user.id);
+      } else {
+        // No session — still load the leaderboard for logged-out visitors
+        await loadLeaderboard();
       }
-      await loadLeaderboard(session.user.id);
-      await loadNotifications(session.user.id);
       setAuthLoading(false);
     });
   }, []);
