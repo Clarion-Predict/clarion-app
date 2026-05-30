@@ -1016,27 +1016,17 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
       console.log('isVoided:', isVoided);
 
       if (isVoided) {
-        // Void the position — refund their stake
+        // Void the position — no payout, mark as voided
         await supabase.from('positions').update({
           resolved: true,
           won: false,
-          payout: pos.invested,
+          payout: 0,
           voided: true,
         }).eq('id', pos.id);
 
-        // Refund their stake
-        const { data: balRow } = await supabase
-          .from('balances')
-          .select('balance')
-          .eq('user_id', pos.user_id)
-          .single();
-        if (balRow) {
-          await supabase.from('balances').update({
-            balance: balRow.balance + pos.invested,
-          }).eq('user_id', pos.user_id);
-        }
+        // Update local state
         if (pos.user_id === authUser?.id) {
-          setBalance(prev => prev + pos.invested);
+          // Will be reloaded from Supabase in step 6
         }
         continue; // Skip payout and accuracy for voided positions
       }
@@ -2588,7 +2578,7 @@ if (authLoading) {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side?.toUpperCase()}</span>
                         {p.resolved && (
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.voided ? 'bg-stone-200 text-stone-500' : p.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                            {p.voided ? `Voided — $${Number(p.payout).toFixed(2)} refunded` : p.won ? `+$${p.payout} won` : 'Lost'}
+                            {p.voided ? 'Voided — placed after cutoff' : p.won ? `+$${p.payout} won` : 'Lost'}
                           </span>
                         )}
                       </div>
