@@ -632,8 +632,8 @@ const ActivityFeed = ({ communityUsers, markets, onViewProfile, onViewMarket, au
               <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap mb-3">
                 <span>${item.amount?.toFixed(2)} wagered</span>
                 {item.resolved && (
-                  <span className={`px-2 py-0.5 rounded-full font-medium ${item.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                    {item.won ? 'Won' : 'Lost'}
+                  <span className={`px-2 py-0.5 rounded-full font-medium ${item.voided ? 'bg-stone-100 text-stone-400' : item.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                    {item.voided ? 'Voided' : item.won ? 'Won' : 'Lost'}
                   </span>
                 )}
                 {SHOW_PLEDGE && causeInfo && (
@@ -977,10 +977,17 @@ const MyProfileTab = ({ balance, positions, markets, demoUser, userProfile, setU
 const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, submissions, setSubmissions, waitlist, authUser, setBalance, setPositions, loadLeaderboard, setUserProfile }) => {
   const [adminTab, setAdminTab] = useState('overview');
   const [resolvingMarket, setResolvingMarket] = useState(null);
+  const [cutoffTime, setCutoffTime] = useState('');
 
   const resolveMarket = async (marketId, outcome) => {
+    const cutoffDate = cutoffTime ? new Date(cutoffTime) : null;
+
     // 1. Mark market as resolved in Supabase
-    const { error: marketError } = await supabase.from('markets').update({ status: 'resolved', outcome }).eq('id', marketId);
+    const { error: marketError } = await supabase.from('markets').update({
+      status: 'resolved',
+      outcome,
+      cutoff_at: cutoffDate ? cutoffDate.toISOString() : null,
+    }).eq('id', marketId);
     if (marketError) { console.error('Market update error:', marketError); }
     setMarkets(prev => prev.map(m => m.id === marketId ? { ...m, status: 'resolved', outcome } : m));
 
@@ -991,26 +998,49 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
       .eq('market_id', marketId)
       .eq('resolved', false);
 
-    console.log('affectedPositions:', affectedPositions, 'error:', posError);
-
     if (!affectedPositions || affectedPositions.length === 0) {
-      console.log('No positions found for market:', marketId);
       setResolvingMarket(null);
+      setCutoffTime('');
       return;
     }
 
-    // 3. Process each position
+    // 3. Process each position — void if after cutoff, payout if before
     for (const pos of affectedPositions) {
+      const posTime = pos.created_at ? new Date(pos.created_at.replace(' ', 'T') + 'Z') : null;
+      const isVoided = cutoffDate && posTime && posTime > cutoffDate;
+      console.log('--- Position check ---');
+      console.log('cutoffTime raw:', cutoffTime);
+      console.log('cutoffDate:', cutoffDate?.toISOString());
+      console.log('pos.created_at raw:', pos.created_at);
+      console.log('posTime:', posTime?.toISOString());
+      console.log('isVoided:', isVoided);
+
+      if (isVoided) {
+        // Void the position — no payout, mark as voided
+        await supabase.from('positions').update({
+          resolved: true,
+          won: false,
+          payout: 0,
+          voided: true,
+        }).eq('id', pos.id);
+
+        // Update local state
+        if (pos.user_id === authUser?.id) {
+          // Will be reloaded from Supabase in step 6
+        }
+        continue; // Skip payout and accuracy for voided positions
+      }
+
       const won = pos.side === outcome;
       const payout = won ? pos.shares : 0;
 
       // Update position
-      const { error: posUpdateError } = await supabase.from('positions').update({
+      await supabase.from('positions').update({
         resolved: true,
         won,
         payout,
+        voided: false,
       }).eq('id', pos.id);
-      if (posUpdateError) console.error('Position update error:', posUpdateError);
 
       // Update balance for winner
       if (won && payout > 0) {
@@ -1020,33 +1050,30 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
           .eq('user_id', pos.user_id)
           .single();
         if (balRow) {
-          const { error: balError } = await supabase.from('balances').update({
+          await supabase.from('balances').update({
             balance: balRow.balance + payout,
           }).eq('user_id', pos.user_id);
-          if (balError) console.error('Balance update error:', balError);
         }
         if (pos.user_id === authUser?.id) {
           setBalance(prev => prev + payout);
         }
       }
 
-      // Recalculate accuracy — query existing resolved, then add current one
+      // Recalculate accuracy (only non-voided positions count)
       const { data: previousResolved } = await supabase
         .from('positions')
         .select('won')
         .eq('user_id', pos.user_id)
         .eq('resolved', true)
-        .neq('id', pos.id); // exclude current position since it was just updated
+        .not('voided', 'eq', true)
+        .neq('id', pos.id);
 
       const previousList = previousResolved || [];
-      // Add current position result
       const allResolvedList = [...previousList, { won }];
       const totalResolved = allResolvedList.length;
       const wins = allResolvedList.filter(p => p.won).length;
       const accuracy = totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
       const impactScore = Math.round(wins * 10);
-
-      console.log('Updating stats for', pos.user_id, '— wins:', wins, 'total:', totalResolved, 'accuracy:', accuracy);
 
       const { error: statsError } = await supabase.rpc('update_user_stats', {
         p_user_id: pos.user_id,
@@ -1056,38 +1083,67 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
         p_impact_score: impactScore,
       });
       if (statsError) console.error('Stats update error:', statsError);
+
+      // Update current user's profile state
+      if (pos.user_id === authUser?.id) {
+        setUserProfile(prev => ({ ...prev, accuracy, totalResolved }));
+      }
     }
 
     // 4. Recalculate leaderboard ranks
-    const { data: allProfiles, error: profilesError } = await supabase
+    const { data: allProfiles } = await supabase
       .from('profiles')
       .select('user_id, accuracy, total_resolved')
       .order('accuracy', { ascending: false });
 
-    console.log('allProfiles for ranking:', allProfiles, 'error:', profilesError);
-
     if (allProfiles) {
       for (let i = 0; i < allProfiles.length; i++) {
-        const { error: rankError } = await supabase.rpc('update_leaderboard_rank', {
+        await supabase.rpc('update_leaderboard_rank', {
           p_user_id: allProfiles[i].user_id,
           p_rank: i + 1,
         });
-        if (rankError) console.error('Rank update error:', rankError);
       }
     }
 
     // 5. Reload leaderboard
     await loadLeaderboard();
 
-    // 6. Update positions in local state
-    setPositions(prev => prev.map(p =>
-      String(p.marketId) === String(marketId)
-        ? { ...p, resolved: true, won: p.side === outcome, payout: p.side === outcome ? p.shares : 0 }
-        : p
-    ));
+    // 6. Reload positions from Supabase — source of truth for resolved/voided status
+    if (authUser) {
+      const { data: freshPositions } = await supabase
+        .from('positions')
+        .select('id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout, voided, created_at')
+        .eq('user_id', authUser.id);
+      if (freshPositions) {
+        setPositions(freshPositions.map(p => ({
+          id: p.id,
+          marketId: p.market_id,
+          market: p.market,
+          category: p.category,
+          side: p.side,
+          shares: p.shares,
+          avgPrice: p.avg_price,
+          invested: p.invested,
+          resolved: p.resolved === true,
+          won: p.won === true,
+          payout: p.payout || 0,
+          voided: (p as any).voided === true,
+          createdAt: (p as any).created_at,
+        })));
+      }
 
-    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved: ' + outcome.toUpperCase() }, ...prev]);
+      // Also reload balance from Supabase
+      const { data: freshBalance } = await supabase
+        .from('balances')
+        .select('balance')
+        .eq('user_id', authUser.id)
+        .single();
+      if (freshBalance) setBalance(freshBalance.balance);
+    }
+
+    setLedger(prev => [{ id: 'le_' + Date.now(), userId: 'system', type: 'resolution', amount: 0, ref: 'mkt_' + marketId, ts: new Date().toISOString().replace('T', ' ').slice(0, 19), desc: 'Market resolved: ' + outcome.toUpperCase() + (cutoffDate ? ' (cutoff: ' + cutoffDate.toLocaleTimeString() + ')' : '') }, ...prev]);
     setResolvingMarket(null);
+    setCutoffTime('');
   };
 
   const approveSubmission = async (subId) => {
@@ -1252,11 +1308,27 @@ const AdminPanel = ({ onClose, markets, setMarkets, ledger, setLedger, users, su
                     <div className="bg-white rounded-lg max-w-md w-full p-6">
                       <h3 className="text-lg font-medium mb-2">Resolve market</h3>
                       <p className="text-sm text-stone-600 mb-4">{resolvingMarket.question}</p>
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                          Cutoff time <span className="text-stone-400 font-normal">(optional — bets after this time will be voided)</span>
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={cutoffTime}
+                          onChange={e => setCutoffTime(e.target.value)}
+                          className="w-full px-3 py-2 rounded-md border border-stone-200 text-sm focus:outline-none text-stone-900"
+                        />
+                        {cutoffTime && (
+                          <p className="text-xs text-amber-700 mt-1.5 bg-amber-50 px-3 py-1.5 rounded">
+                            Positions placed after {new Date(cutoffTime).toLocaleString()} will be voided.
+                          </p>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button onClick={() => resolveMarket(resolvingMarket.id, 'yes')} className="flex-1 py-2.5 rounded-md bg-emerald-600 text-white text-sm font-medium">Resolve YES</button>
                         <button onClick={() => resolveMarket(resolvingMarket.id, 'no')} className="flex-1 py-2.5 rounded-md bg-rose-600 text-white text-sm font-medium">Resolve NO</button>
                       </div>
-                      <button onClick={() => setResolvingMarket(null)} className="w-full mt-2 py-2 text-sm text-stone-500">Cancel</button>
+                      <button onClick={() => { setResolvingMarket(null); setCutoffTime(''); }} className="w-full mt-2 py-2 text-sm text-stone-500">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -1707,6 +1779,8 @@ export default function Clarion() {
             resolved: p.resolved === true,
             won: p.won === true,
             payout: p.payout || 0,
+            voided: (p as any).voided === true,
+            createdAt: (p as any).created_at,
           })));
         }
         const { data: adminRow } = await supabase
@@ -1820,6 +1894,8 @@ export default function Clarion() {
           resolved: p.resolved === true,
           won: p.won === true,
           payout: p.payout || 0,
+          voided: (p as any).voided === true,
+          createdAt: (p as any).created_at,
         })));
       }
       const { data: adminRow } = await supabase
@@ -1874,7 +1950,6 @@ export default function Clarion() {
         if (followRows) {
           followRows.forEach(f => followingIds.add(f.following_id));
         }
-        console.log('followRows:', followRows, 'userId:', userId, 'followingIds:', Array.from(followingIds));
       }
       // Load who follows current user
       let followerIds = new Set();
@@ -2184,6 +2259,7 @@ if (authLoading) {
                 <div className="flex-1 text-xs text-amber-900 leading-snug"><span className="font-medium">1 percent of this trade (${pledgeAmount.toFixed(2)})</span> supports {cause.name}</div>
               </div>
               )}
+              <p className="text-xs text-stone-400 text-center mb-3">Bets placed after an outcome is known may be voided at resolution.</p>
               <button onClick={handleTrade} disabled={tradeAmount > balance} className={`w-full py-4 rounded-2xl font-medium text-white ${tradeSide === 'yes' ? 'bg-emerald-600' : 'bg-rose-600'}`}>
                 {tradeAmount > balance ? 'Insufficient balance' : 'Confirm practice trade'}
               </button>
@@ -2495,14 +2571,14 @@ if (authLoading) {
             {positions.length > 0 ? (
               <div className="space-y-3">
                 {positions.map(p => (
-                  <div key={p.id} className={`p-4 md:p-5 rounded-2xl border ${p.resolved ? (p.won ? 'bg-emerald-50 border-emerald-100' : 'bg-stone-50 border-stone-100') : 'bg-white border-stone-100'}`}>
+                  <div key={p.id} className={`p-4 md:p-5 rounded-2xl border ${p.resolved ? (p.voided ? 'bg-stone-50 border-stone-100' : p.won ? 'bg-emerald-50 border-emerald-100' : 'bg-stone-50 border-stone-100') : 'bg-white border-stone-100'}`}>
                     <h3 className="text-sm font-serif text-stone-900 mb-2">{p.market}</h3>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side.toUpperCase()}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${p.side === 'yes' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{p.side?.toUpperCase()}</span>
                         {p.resolved && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                            {p.won ? `+$${p.payout} won` : 'Lost'}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.voided ? 'bg-stone-200 text-stone-500' : p.won ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                            {p.voided ? 'Voided — placed after cutoff' : p.won ? `+$${p.payout} won` : 'Lost'}
                           </span>
                         )}
                       </div>
