@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
+import BuyCreditsModal from "./BuyCreditsModal";
 import {
   Search,
   TrendingUp,
@@ -2390,164 +2391,46 @@ const AdminPanel = ({
   const resolveMarket = async (marketId, outcome) => {
     const cutoffDate = cutoffTime ? new Date(cutoffTime) : null;
 
-    // 1. Mark market as resolved in Supabase
-    const { error: marketError } = await supabase
-      .from("markets")
-      .update({
-        status: "resolved",
-        outcome,
-        cutoff_at: cutoffDate ? cutoffDate.toISOString() : null,
-      })
-      .eq("id", marketId);
-    if (marketError) {
-      console.error("Market update error:", marketError);
+    // All payout/void/stats logic runs server-side in the resolve_market
+    // function (admin-gated) — one atomic call instead of client-side loops.
+    const { data: summary, error: resolveError } = await supabase.rpc(
+      "resolve_market",
+      {
+        p_market_id: marketId,
+        p_outcome: outcome,
+        p_cutoff: cutoffDate ? cutoffDate.toISOString() : null,
+      },
+    );
+    if (resolveError) {
+      console.error("Market resolution error:", resolveError);
+      alert("Failed to resolve market: " + resolveError.message);
+      return;
     }
+    console.log("resolve_market summary:", summary);
+
     setMarkets((prev) =>
       prev.map((m) =>
         m.id === marketId ? { ...m, status: "resolved", outcome } : m,
       ),
     );
 
-    // 2. Find all positions on this market from Supabase
-    const { data: affectedPositions, error: posError } = await supabase
-      .from("positions")
-      .select("*")
-      .eq("market_id", marketId)
-      .eq("resolved", false);
-
-    if (!affectedPositions || affectedPositions.length === 0) {
-      setResolvingMarket(null);
-      setCutoffTime("");
-      return;
-    }
-
-    // 3. Process each position — void if after cutoff, payout if before
-    for (const pos of affectedPositions) {
-      const posTime = pos.created_at
-        ? new Date(pos.created_at.replace(" ", "T") + "Z")
-        : null;
-      const isVoided = cutoffDate && posTime && posTime > cutoffDate;
-      console.log("--- Position check ---");
-      console.log("cutoffTime raw:", cutoffTime);
-      console.log("cutoffDate:", cutoffDate?.toISOString());
-      console.log("pos.created_at raw:", pos.created_at);
-      console.log("posTime:", posTime?.toISOString());
-      console.log("isVoided:", isVoided);
-
-      if (isVoided) {
-        // Void the position — refund their stake
-        await supabase
-          .from("positions")
-          .update({
-            resolved: true,
-            won: false,
-            payout: pos.invested,
-            voided: true,
-          })
-          .eq("id", pos.id);
-
-        // Refund their stake
-        const { data: balRow } = await supabase
-          .from("balances")
-          .select("balance")
-          .eq("user_id", pos.user_id)
-          .single();
-        if (balRow) {
-          await supabase
-            .from("balances")
-            .update({
-              balance: balRow.balance + pos.invested,
-            })
-            .eq("user_id", pos.user_id);
-        }
-        if (pos.user_id === authUser?.id) {
-          setBalance((prev) => prev + pos.invested);
-        }
-        continue; // Skip payout and accuracy for voided positions
-      }
-
-      const won = pos.side === outcome;
-      const payout = won ? pos.shares : 0;
-
-      // Update position
-      await supabase
-        .from("positions")
-        .update({
-          resolved: true,
-          won,
-          payout,
-          voided: false,
-        })
-        .eq("id", pos.id);
-
-      // Update balance for winner
-      if (won && payout > 0) {
-        const { data: balRow } = await supabase
-          .from("balances")
-          .select("balance")
-          .eq("user_id", pos.user_id)
-          .single();
-        if (balRow) {
-          await supabase
-            .from("balances")
-            .update({
-              balance: balRow.balance + payout,
-            })
-            .eq("user_id", pos.user_id);
-        }
-        if (pos.user_id === authUser?.id) {
-          setBalance((prev) => prev + payout);
-        }
-      }
-
-      // Recalculate accuracy (only non-voided positions count)
-      const { data: previousResolved } = await supabase
-        .from("positions")
-        .select("won")
-        .eq("user_id", pos.user_id)
-        .eq("resolved", true)
-        .not("voided", "eq", true)
-        .neq("id", pos.id);
-
-      const previousList = previousResolved || [];
-      const allResolvedList = [...previousList, { won }];
-      const totalResolved = allResolvedList.length;
-      const wins = allResolvedList.filter((p) => p.won).length;
-      const accuracy =
-        totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
-      const impactScore = Math.round(wins * 10);
-
-      const { error: statsError } = await supabase.rpc("update_user_stats", {
-        p_user_id: pos.user_id,
-        p_wins: wins,
-        p_total_resolved: totalResolved,
-        p_accuracy: accuracy,
-        p_impact_score: impactScore,
-      });
-      if (statsError) console.error("Stats update error:", statsError);
-
-      // Update current user's profile state
-      if (pos.user_id === authUser?.id) {
-        setUserProfile((prev) => ({ ...prev, accuracy, totalResolved }));
+    // Refresh my own profile stats (accuracy may have changed)
+    if (authUser) {
+      const { data: myProfile } = await supabase
+        .from("profiles")
+        .select("accuracy, total_resolved")
+        .eq("user_id", authUser.id)
+        .single();
+      if (myProfile) {
+        setUserProfile((prev) => ({
+          ...prev,
+          accuracy: myProfile.accuracy || 0,
+          totalResolved: myProfile.total_resolved || 0,
+        }));
       }
     }
 
-    // 4. Recalculate leaderboard ranks
-    const { data: allProfiles } = await supabase
-      .from("profiles")
-      .select("user_id, accuracy, total_resolved")
-      .order("accuracy", { ascending: false });
-
-    if (allProfiles) {
-      for (let i = 0; i < allProfiles.length; i++) {
-        await supabase.rpc("update_leaderboard_rank", {
-          p_user_id: allProfiles[i].user_id,
-          p_rank: i + 1,
-        });
-      }
-    }
-
-    // 5. Reload leaderboard
+    // Reload leaderboard
     await loadLeaderboard();
 
     // 6. Reload positions from Supabase — source of truth for resolved/voided status
@@ -3713,6 +3596,53 @@ export default function Cajuga() {
   };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
+  // Set when the user comes back from Stripe Checkout (?checkout=success|cancelled)
+  const [pendingCheckout, setPendingCheckout] = useState(() =>
+    new URLSearchParams(window.location.search).get("checkout"),
+  );
+  const [checkoutBanner, setCheckoutBanner] = useState(null);
+
+  // Clean the ?checkout= param off the URL and surface a cancelled banner
+  // immediately. The success path waits for auth below.
+  useEffect(() => {
+    if (!pendingCheckout) return;
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + window.location.hash,
+    );
+    if (pendingCheckout === "cancelled") {
+      setCheckoutBanner("cancelled");
+      setPendingCheckout(null);
+    }
+  }, [pendingCheckout]);
+
+  // After a successful checkout, the credit lands via the Stripe webhook a
+  // moment after redirect — poll the balance briefly so the UI catches up.
+  useEffect(() => {
+    if (pendingCheckout !== "success" || !authUser?.id) return;
+    setPendingCheckout(null);
+    setCheckoutBanner("success");
+    let stopped = false;
+    let attempts = 0;
+    const poll = async () => {
+      attempts++;
+      const { data } = await supabase
+        .from("balances")
+        .select("balance")
+        .eq("user_id", authUser.id)
+        .single();
+      if (stopped) return;
+      if (data) setBalance(data.balance);
+      if (attempts < 8) setTimeout(poll, 2500);
+    };
+    setTimeout(poll, 1500);
+    return () => {
+      stopped = true;
+    };
+  }, [pendingCheckout, authUser?.id]);
+
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showDevMenu, setShowDevMenu] = useState(false);
@@ -3787,26 +3717,15 @@ export default function Cajuga() {
             totalResolved: profile.total_resolved || 0,
           });
         }
-        if (balanceRow) {
-          // Weekly refill — top up to $100 if below, on Mondays
-          const today = new Date();
-          const isMonday = today.getDay() === 1;
-          const lastRefillKey = `lastRefill_${session.user.id}`;
-          const lastRefill = localStorage.getItem(lastRefillKey);
-          const todayStr = today.toDateString();
-          const shouldRefill =
-            isMonday && lastRefill !== todayStr && balanceRow.balance < 100;
-          if (shouldRefill) {
-            const newBalance = 100;
-            await supabase
-              .from("balances")
-              .update({ balance: newBalance })
-              .eq("user_id", session.user.id);
-            localStorage.setItem(lastRefillKey, todayStr);
-            setBalance(newBalance);
-          } else {
-            setBalance(balanceRow.balance);
-          }
+        // Balance + Monday refill: claim_weekly_refill is server-enforced,
+        // creates the row if missing, and returns the current balance.
+        const { data: balanceData } = await supabase.rpc(
+          "claim_weekly_refill",
+        );
+        if (balanceData) {
+          setBalance(balanceData.balance);
+        } else if (balanceRow) {
+          setBalance(balanceRow.balance);
         }
         if (positionRows) {
           console.log(
@@ -3902,10 +3821,9 @@ export default function Cajuga() {
           bio: "",
           cause: "",
         });
-        await supabase.from("balances").insert({
-          user_id: data.user.id,
-          balance: 50,
-        });
+        // Starting balance is created server-side (fixed at $50) — clients
+        // can no longer insert into balances directly.
+        await supabase.rpc("ensure_balance");
         setAuthUser({
           id: data.user.id,
           email: userData.email,
@@ -3956,6 +3874,11 @@ export default function Cajuga() {
         }
         if (balanceRow) {
           setBalance(balanceRow.balance);
+        } else {
+          // No balance row yet (e.g. account predates the balances table) —
+          // create it server-side.
+          const { data: ensured } = await supabase.rpc("ensure_balance");
+          if (ensured) setBalance(ensured.balance);
         }
         if (positionRows) {
           setPositions(
@@ -4213,107 +4136,92 @@ export default function Cajuga() {
   };
 
   const handleTrade = async () => {
-    setShowConfirm(true);
     const price = tradeSide === "yes" ? selectedMarket.yes : selectedMarket.no;
     const cost = tradeAmount;
-    const pledgeAmount = cost * 0.01;
-    const newBalance = Math.max(0, balance - cost);
-    const shares = Math.floor(tradeAmount / (price / 100));
-
-    // Calculate new volumes and prices
-    const LIQUIDITY_SEED = 50;
-    const newYesVolume =
-      (selectedMarket.yes_volume || 0) + (tradeSide === "yes" ? cost : 0);
-    const newNoVolume =
-      (selectedMarket.no_volume || 0) + (tradeSide === "no" ? cost : 0);
-    const totalVolume =
-      newYesVolume + LIQUIDITY_SEED + (newNoVolume + LIQUIDITY_SEED);
-    const newYesPrice = Math.round(
-      ((newYesVolume + LIQUIDITY_SEED) / totalVolume) * 100,
-    );
-    const newNoPrice = 100 - newYesPrice;
-
-    setBalance(newBalance);
-
-    // Update market prices in local state
-    setMarkets((prev) =>
-      prev.map((m) =>
-        m.id === selectedMarket.id
-          ? {
-              ...m,
-              yes: newYesPrice,
-              no: newNoPrice,
-              yes_volume: newYesVolume,
-              no_volume: newNoVolume,
-            }
-          : m,
-      ),
-    );
-
-    const newPosition = {
-      id: "p" + Date.now(),
-      marketId: selectedMarket.id,
-      market: selectedMarket.question,
-      category: selectedMarket.category,
-      side: tradeSide,
-      shares,
-      avgPrice: price,
-      invested: cost,
-    };
-    setPositions((p) => [...p, newPosition]);
 
     if (authUser) {
-      // Save balance
-      await supabase
-        .from("balances")
-        .update({ balance: newBalance })
-        .eq("user_id", authUser.id);
+      // Server is the source of truth: place_trade validates the balance,
+      // deducts it, records the position/ledger and moves prices atomically.
+      const { data, error } = await supabase.rpc("place_trade", {
+        p_market_id: selectedMarket.id,
+        p_side: tradeSide,
+        p_amount: cost,
+      });
+      if (error || !data) {
+        console.error("Trade failed:", error);
+        alert("Trade failed: " + (error?.message || "please try again"));
+        return;
+      }
+      setShowConfirm(true);
+      setBalance(data.new_balance);
+      setMarkets((prev) =>
+        prev.map((m) =>
+          m.id === selectedMarket.id
+            ? {
+                ...m,
+                yes: data.yes,
+                no: data.no,
+                yes_volume: data.yes_volume,
+                no_volume: data.no_volume,
+              }
+            : m,
+        ),
+      );
+      const sp = data.position;
+      setPositions((p) => [
+        ...p,
+        {
+          id: sp.id,
+          marketId: sp.market_id,
+          market: sp.market,
+          category: sp.category,
+          side: sp.side,
+          shares: sp.shares,
+          avgPrice: sp.avg_price,
+          invested: sp.invested,
+        },
+      ]);
+    } else {
+      // Logged-out demo mode: purely local, nothing is persisted.
+      setShowConfirm(true);
+      const shares = Math.floor(tradeAmount / (price / 100));
+      const LIQUIDITY_SEED = 50;
+      const newYesVolume =
+        (selectedMarket.yes_volume || 0) + (tradeSide === "yes" ? cost : 0);
+      const newNoVolume =
+        (selectedMarket.no_volume || 0) + (tradeSide === "no" ? cost : 0);
+      const totalVolume =
+        newYesVolume + LIQUIDITY_SEED + (newNoVolume + LIQUIDITY_SEED);
+      const newYesPrice = Math.round(
+        ((newYesVolume + LIQUIDITY_SEED) / totalVolume) * 100,
+      );
+      const newNoPrice = 100 - newYesPrice;
 
-      // Save position
-      const { data: savedPosition, error: positionError } = await supabase
-        .from("positions")
-        .insert({
-          user_id: authUser.id,
-          market_id: selectedMarket.id,
+      setBalance(Math.max(0, balance - cost));
+      setMarkets((prev) =>
+        prev.map((m) =>
+          m.id === selectedMarket.id
+            ? {
+                ...m,
+                yes: newYesPrice,
+                no: newNoPrice,
+                yes_volume: newYesVolume,
+                no_volume: newNoVolume,
+              }
+            : m,
+        ),
+      );
+      setPositions((p) => [
+        ...p,
+        {
+          id: "p" + Date.now(),
+          marketId: selectedMarket.id,
           market: selectedMarket.question,
           category: selectedMarket.category,
           side: tradeSide,
           shares,
-          avg_price: price,
+          avgPrice: price,
           invested: cost,
-        })
-        .select()
-        .single();
-
-      // Update market prices and volumes in Supabase
-      await supabase
-        .from("markets")
-        .update({
-          yes: newYesPrice,
-          no: newNoPrice,
-          yes_volume: newYesVolume,
-          no_volume: newNoVolume,
-        })
-        .eq("id", selectedMarket.id);
-
-      // Save ledger entries
-      await supabase.from("ledger").insert([
-        {
-          user_id: authUser.id,
-          type: "trade",
-          amount: -cost,
-          ref: "trd_" + Date.now(),
-          description:
-            tradeSide.toUpperCase() +
-            " practice trade — " +
-            selectedMarket.question,
-        },
-        {
-          user_id: authUser.id,
-          type: "pledge",
-          amount: -pledgeAmount,
-          ref: "trd_" + Date.now(),
-          description: "1% pledge",
         },
       ]);
     }
@@ -4589,6 +4497,36 @@ export default function Cajuga() {
         </button>
       </div>
 
+      {checkoutBanner && (
+        <div
+          className={`px-4 py-2 flex items-center justify-center gap-2 text-xs border-b ${
+            checkoutBanner === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-stone-100 border-stone-200 text-stone-600"
+          }`}
+        >
+          {checkoutBanner === "success" ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              <span className="font-medium">Payment received!</span>
+              <span>Your credits will appear in your balance shortly.</span>
+            </>
+          ) : (
+            <span>Checkout cancelled — no charge was made.</span>
+          )}
+          <button
+            onClick={() => setCheckoutBanner(null)}
+            className="ml-2 underline font-medium"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {showBuyCredits && authUser && (
+        <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
+      )}
+
       {showWaitlist && (
         <WaitlistModal
           onClose={() => setShowWaitlist(false)}
@@ -4646,6 +4584,15 @@ export default function Cajuga() {
                 <span className="font-medium text-stone-900">
                   ${balance.toFixed(2)}
                 </span>
+                {authUser && (
+                  <button
+                    onClick={() => setShowBuyCredits(true)}
+                    title="Add credits"
+                    className="w-5 h-5 -mr-1 flex items-center justify-center rounded-full bg-stone-900 text-white hover:bg-stone-700"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <button
