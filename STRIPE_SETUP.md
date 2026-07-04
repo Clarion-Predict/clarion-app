@@ -97,7 +97,7 @@ Previously the app **updated `balances` directly from the browser** (trades, mar
 - **`resolve_market(market_id, outcome, cutoff)`** — admin-gated payouts/voids/stats (checks the `admins` table server-side).
 - The pre-existing `update_user_stats` / `update_leaderboard_rank` RPCs were callable by anyone (anyone could set their own accuracy); execute is now revoked and `resolve_market` calls them internally.
 
-Type note: the migration assumes `markets.id` / `positions.market_id` are `bigint`. If your tables use `uuid`, change the two parameter types in `place_trade` and `resolve_market`.
+Type note: `markets.id` / `positions.market_id` are `uuid` in this project (confirmed in production). If you applied an early version of the lockdown migration that used `bigint`, `20260704090000_fix_market_id_uuid.sql` recreates both functions with the correct types.
 
 ## Withdrawals (later)
 

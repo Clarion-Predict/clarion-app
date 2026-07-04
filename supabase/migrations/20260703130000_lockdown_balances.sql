@@ -4,8 +4,7 @@
 --
 -- Run AFTER 20260703120000_stripe_credits.sql (supabase db push applies both).
 --
--- NOTE: assumes markets.id / positions.market_id are bigint (Supabase default
--- identity columns). If yours are uuid, change the two `bigint` params below.
+-- markets.id / positions.market_id are uuid in this project.
 
 -- ---------------------------------------------------------------------------
 -- 0. Helpers / schema tweaks
@@ -129,7 +128,7 @@ grant execute on function public.ensure_balance() to authenticated;
 -- ---------------------------------------------------------------------------
 
 create or replace function public.place_trade(
-  p_market_id bigint,
+  p_market_id uuid,
   p_side text,
   p_amount numeric
 ) returns jsonb
@@ -223,8 +222,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.place_trade(bigint, text, numeric) from public, anon;
-grant execute on function public.place_trade(bigint, text, numeric) to authenticated;
+revoke execute on function public.place_trade(uuid, text, numeric) from public, anon;
+grant execute on function public.place_trade(uuid, text, numeric) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 4. claim_weekly_refill() — Monday top-up to $100, enforced server-side
@@ -272,7 +271,7 @@ grant execute on function public.claim_weekly_refill() to authenticated;
 -- ---------------------------------------------------------------------------
 
 create or replace function public.resolve_market(
-  p_market_id bigint,
+  p_market_id uuid,
   p_outcome text,
   p_cutoff timestamptz default null
 ) returns jsonb
@@ -370,5 +369,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.resolve_market(bigint, text, timestamptz) from public, anon;
-grant execute on function public.resolve_market(bigint, text, timestamptz) to authenticated;
+revoke execute on function public.resolve_market(uuid, text, timestamptz) from public, anon;
+grant execute on function public.resolve_market(uuid, text, timestamptz) to authenticated;
