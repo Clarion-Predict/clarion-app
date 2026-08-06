@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 import BuyCreditsModal from "./BuyCreditsModal";
@@ -1098,7 +1098,7 @@ const generateSubmission = () => {
     id: "sub_auto_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
     submitter,
     source: tmpl.source,
-    time: "just now",
+    time: new Date().toLocaleString(),
     category: tmpl.category,
     question: tmpl.question,
     context: "Auto-generated for editorial review.",
@@ -2500,9 +2500,31 @@ const AdminPanel = ({
   const [autoSpeed, setAutoSpeed] = useState(8);
   const [lastGenerated, setLastGenerated] = useState(null);
 
+  // Questions already pending review, kept in a ref so the auto-run timer
+  // (whose closure would otherwise go stale) always sees the current list.
+  const pendingQuestionsRef = useRef(new Set());
+  useEffect(() => {
+    pendingQuestionsRef.current = new Set(
+      submissions
+        .filter((s) => s.status === "pending")
+        .map((s) => s.question),
+    );
+  }, [submissions]);
+
+  // Walk the template pool until we find a question that isn't already
+  // pending; null when every template is queued for review.
+  const generateFreshSubmission = () => {
+    for (let i = 0; i < automationTemplates.length; i++) {
+      const sub = generateSubmission();
+      if (!pendingQuestionsRef.current.has(sub.question)) return sub;
+    }
+    return null;
+  };
+
   // Persist a generated submission so it survives reloads and flows through
   // the same review pipeline as community submissions.
   const addGeneratedSubmission = async (sub) => {
+    if (!sub) return;
     const { data: row, error } = await insertSubmission({
       user_id: authUser?.id,
       username: sub.submitter,
@@ -2523,7 +2545,7 @@ const AdminPanel = ({
     setTimeout(() => setLastGenerated(null), 1500);
   };
 
-  const generateOnce = () => addGeneratedSubmission(generateSubmission());
+  const generateOnce = () => addGeneratedSubmission(generateFreshSubmission());
 
   useEffect(() => {
     if (!autoRunning) return;
@@ -2532,7 +2554,7 @@ const AdminPanel = ({
       const jitter = (Math.random() - 0.5) * 0.8;
       const delay = Math.max(2, autoSpeed * (1 + jitter)) * 1000;
       tid = setTimeout(() => {
-        addGeneratedSubmission(generateSubmission());
+        addGeneratedSubmission(generateFreshSubmission());
         next();
       }, delay);
     };
@@ -4041,7 +4063,7 @@ export default function Cajuga() {
                 id: s.id,
                 submitter: s.submitter || s.username || "Anonymous",
                 source: s.source || "community",
-                time: new Date(s.created_at).toLocaleDateString(),
+                time: new Date(s.created_at).toLocaleString(),
                 category: s.category,
                 question: s.question,
                 show: s.show,
