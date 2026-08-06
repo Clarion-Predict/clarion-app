@@ -1001,30 +1001,134 @@ const initialSubmissions = [
   },
 ];
 
+const submitterNames = [
+  "Aisha M.",
+  "Priya K.",
+  "Nina R.",
+  "Sophie L.",
+  "Maya T.",
+  "Lena W.",
+  "Zoe H.",
+  "Chloe G.",
+  "Imani C.",
+  "Riley B.",
+  "Anonymous",
+  "Kai O.",
+  "Rosa V.",
+  "Tanvi A.",
+  "Elena S.",
+  "Daniela P.",
+];
+
+// Keyword screening applied to every submission (community or generated).
+// A failed check blocks one-click approval in the admin console.
+const FILTER_KEYWORDS = {
+  perverseIncentive: [
+    "die",
+    "death",
+    "killed",
+    "resign",
+    "arrested",
+    "overdose",
+    "hospitalized",
+  ],
+  dignity: [
+    "cheat",
+    "cheating",
+    "affair",
+    "pregnant",
+    "miscarriage",
+    "rehab",
+    "eating disorder",
+    "breakdown",
+    "suicidal",
+  ],
+  prohibited: ["minor", "underage", "child", "suicide"],
+};
+
+const autoCheckSubmission = (q) => {
+  const t = q.toLowerCase();
+  const checks = {
+    publicResolution: true,
+    noPerverseIncentive: true,
+    dignity: true,
+    valuesAligned: true,
+  };
+  let r = null;
+  if (FILTER_KEYWORDS.perverseIncentive.find((w) => t.includes(w))) {
+    checks.noPerverseIncentive = false;
+    r = "Markets on mortality, removal, or arrest create perverse incentives.";
+  }
+  if (FILTER_KEYWORDS.dignity.find((w) => t.includes(w))) {
+    checks.dignity = false;
+    r = "Markets on private relationships, health, or personal struggles are out of scope.";
+  }
+  if (FILTER_KEYWORDS.prohibited.find((w) => t.includes(w))) {
+    checks.dignity = false;
+    checks.valuesAligned = false;
+    r = "Not permitted on Cajuga.";
+  }
+  if (t.length < 20) {
+    checks.publicResolution = false;
+    r = "Question is too vague for clear resolution.";
+  }
+  return { checks, rejectReason: r };
+};
+
+// Don't repeat a template until the whole pool has been used once.
+const usedTemplateQuestions = new Set();
+
 const generateSubmission = () => {
-  const tmpl =
-    automationTemplates[Math.floor(Math.random() * automationTemplates.length)];
-  const sourceLabel =
+  const avail = automationTemplates.filter(
+    (t) => !usedTemplateQuestions.has(t.question),
+  );
+  const pool = avail.length > 0 ? avail : automationTemplates;
+  if (avail.length === 0) usedTemplateQuestions.clear();
+  const tmpl = pool[Math.floor(Math.random() * pool.length)];
+  usedTemplateQuestions.add(tmpl.question);
+  const submitter =
     tmpl.source === "community"
-      ? "Community member"
+      ? submitterNames[Math.floor(Math.random() * submitterNames.length)]
       : tmpl.source === "llm-drafted"
-        ? "Clarion AI drafted"
+        ? "Cajuga AI drafted"
         : tmpl.source === "event-feed"
           ? "Event feed auto"
           : "Scheduled event auto";
   return {
     id: "sub_auto_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-    submitter: sourceLabel,
+    submitter,
     source: tmpl.source,
     time: "just now",
     category: tmpl.category,
     question: tmpl.question,
-    context: "Auto-generated for review.",
+    context: "Auto-generated for editorial review.",
     endsHint: "Dec 31, 2026",
     autoChecks: tmpl.passes,
     rejectReason: tmpl.rejectReason,
     status: "pending",
   };
+};
+
+// Insert a submission row, falling back to the base columns if the
+// submission_automation migration hasn't been applied to this database yet.
+const insertSubmission = async (payload) => {
+  let { data, error } = await supabase
+    .from("submissions")
+    .insert(payload)
+    .select()
+    .single();
+  if (error && /column|schema/i.test(error.message || "")) {
+    const base = { ...payload };
+    ["source", "submitter", "auto_checks", "reject_reason"].forEach(
+      (k) => delete base[k],
+    );
+    ({ data, error } = await supabase
+      .from("submissions")
+      .insert(base)
+      .select()
+      .single());
+  }
+  return { data, error };
 };
 
 const communityImpact = {
@@ -1099,7 +1203,8 @@ const SuggestMarketModal = ({ onClose, authUser, onSubmitted }) => {
       return;
     }
     setLoading(true);
-    const { error: submitError } = await supabase.from("submissions").insert({
+    const { checks, rejectReason } = autoCheckSubmission(question.trim());
+    const { error: submitError } = await insertSubmission({
       user_id: authUser.id,
       username: authUser.username,
       question: question.trim(),
@@ -1108,6 +1213,10 @@ const SuggestMarketModal = ({ onClose, authUser, onSubmitted }) => {
       context: context.trim(),
       ends_hint: endsHint.trim(),
       status: "pending",
+      source: "community",
+      submitter: authUser.username,
+      auto_checks: checks,
+      reject_reason: rejectReason,
     });
     setLoading(false);
     if (submitError) {
@@ -2387,6 +2496,52 @@ const AdminPanel = ({
   const [adminTab, setAdminTab] = useState("overview");
   const [resolvingMarket, setResolvingMarket] = useState(null);
   const [cutoffTime, setCutoffTime] = useState("");
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoSpeed, setAutoSpeed] = useState(8);
+  const [lastGenerated, setLastGenerated] = useState(null);
+
+  // Persist a generated submission so it survives reloads and flows through
+  // the same review pipeline as community submissions.
+  const addGeneratedSubmission = async (sub) => {
+    const { data: row, error } = await insertSubmission({
+      user_id: authUser?.id,
+      username: sub.submitter,
+      question: sub.question,
+      show: "",
+      category: sub.category,
+      context: sub.context,
+      ends_hint: sub.endsHint,
+      status: "pending",
+      source: sub.source,
+      submitter: sub.submitter,
+      auto_checks: sub.autoChecks,
+      reject_reason: sub.rejectReason || null,
+    });
+    if (error) console.error("Failed to persist generated submission:", error);
+    setSubmissions((prev) => [{ ...sub, supabaseId: row?.id }, ...prev]);
+    setLastGenerated(sub.id);
+    setTimeout(() => setLastGenerated(null), 1500);
+  };
+
+  const generateOnce = () => addGeneratedSubmission(generateSubmission());
+
+  useEffect(() => {
+    if (!autoRunning) return;
+    let tid;
+    const next = () => {
+      const jitter = (Math.random() - 0.5) * 0.8;
+      const delay = Math.max(2, autoSpeed * (1 + jitter)) * 1000;
+      tid = setTimeout(() => {
+        addGeneratedSubmission(generateSubmission());
+        next();
+      }, delay);
+    };
+    next();
+    return () => {
+      if (tid) clearTimeout(tid);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRunning, autoSpeed]);
 
   const resolveMarket = async (marketId, outcome) => {
     const cutoffDate = cutoffTime ? new Date(cutoffTime) : null;
@@ -2687,6 +2842,53 @@ const AdminPanel = ({
                 <p className="text-xs text-stone-500 mb-4">
                   {pending} pending review
                 </p>
+                <div className="mb-4 p-4 rounded-lg bg-stone-900 text-stone-200">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-1">
+                      <div
+                        className={`w-2 h-2 rounded-full ${autoRunning ? "bg-emerald-400 animate-pulse" : "bg-stone-500"}`}
+                      />
+                      <span className="text-xs font-mono">automation</span>
+                      <span className="text-xs text-stone-500">
+                        {autoRunning ? `running, every ~${autoSpeed}s` : "paused"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={autoSpeed}
+                        onChange={(e) => setAutoSpeed(Number(e.target.value))}
+                        disabled={autoRunning}
+                        className="text-xs bg-stone-800 border border-stone-700 rounded px-2 py-1"
+                      >
+                        <option value="4">4s</option>
+                        <option value="8">8s</option>
+                        <option value="15">15s</option>
+                        <option value="30">30s</option>
+                      </select>
+                      <button
+                        onClick={generateOnce}
+                        className="px-3 py-1.5 rounded-md bg-stone-800 text-xs flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3 h-3" /> One
+                      </button>
+                      <button
+                        onClick={() => setAutoRunning(!autoRunning)}
+                        className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 font-medium ${autoRunning ? "bg-rose-600" : "bg-emerald-600"} text-white`}
+                      >
+                        {autoRunning ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Play className="w-3 h-3" />
+                        )}
+                        {autoRunning ? "Pause" : "Run"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-stone-500 mt-2">
+                    {automationTemplates.length} templates loaded. Generated
+                    submissions are screened and queued for review below.
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {pending === 0 && (
                     <div className="text-center py-10 text-stone-400 text-sm">
@@ -2695,54 +2897,117 @@ const AdminPanel = ({
                   )}
                   {submissions
                     .filter((s) => s.status === "pending")
-                    .map((sub) => (
-                      <div
-                        key={sub.id}
-                        className="bg-white rounded-lg border border-stone-200 p-4"
-                      >
-                        <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
-                          <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
-                            {sub.category}
-                          </span>
-                          {sub.show && (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                              {sub.show}
+                    .map((sub) => {
+                      const c = sub.autoChecks || {
+                        publicResolution: true,
+                        noPerverseIncentive: true,
+                        dignity: true,
+                        valuesAligned: true,
+                      };
+                      const ok =
+                        c.publicResolution &&
+                        c.noPerverseIncentive &&
+                        c.dignity &&
+                        c.valuesAligned;
+                      const isNew = lastGenerated === sub.id;
+                      const scol =
+                        sub.source === "event-feed" ||
+                        sub.source === "scheduled-event"
+                          ? "bg-blue-100 text-blue-700"
+                          : sub.source === "llm-drafted"
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-amber-100 text-amber-700";
+                      return (
+                        <div
+                          key={sub.id}
+                          className={`bg-white rounded-lg border p-4 transition-all ${isNew ? "border-emerald-400 ring-2 ring-emerald-200" : "border-stone-200"}`}
+                        >
+                          <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+                            <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
+                              {sub.category}
                             </span>
+                            {sub.source && (
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${scol}`}
+                              >
+                                {sub.source}
+                              </span>
+                            )}
+                            {sub.show && (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                {sub.show}
+                              </span>
+                            )}
+                            <span className="text-stone-500">
+                              by {sub.submitter}
+                            </span>
+                            <span className="text-stone-500">{sub.time}</span>
+                            {isNew && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-base font-medium text-stone-900 mb-2">
+                            {sub.question}
+                          </h3>
+                          {sub.context && (
+                            <p className="text-xs text-stone-500 mb-3">
+                              {sub.context}
+                            </p>
                           )}
-                          <span className="text-stone-500">
-                            by {sub.submitter}
-                          </span>
-                          <span className="text-stone-500">{sub.time}</span>
+                          {sub.endsHint && (
+                            <p className="text-xs text-stone-400 mb-3">
+                              Resolves: {sub.endsHint}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                            {[
+                              { k: "publicResolution", l: "Public resolution" },
+                              {
+                                k: "noPerverseIncentive",
+                                l: "No perverse incentive",
+                              },
+                              { k: "dignity", l: "Dignity" },
+                              { k: "valuesAligned", l: "Values aligned" },
+                            ].map((ck) => (
+                              <div
+                                key={ck.k}
+                                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs ${c[ck.k] ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                              >
+                                {c[ck.k] ? (
+                                  <Check className="w-3 h-3" />
+                                ) : (
+                                  <X className="w-3 h-3" />
+                                )}
+                                <span className="truncate">{ck.l}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {sub.rejectReason && (
+                            <div className="p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-3">
+                              <span className="font-medium">Auto-flag:</span>{" "}
+                              {sub.rejectReason}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => approveSubmission(sub.id)}
+                              disabled={!ok}
+                              className={`flex-1 py-2 rounded-md text-sm font-medium ${ok ? "bg-emerald-600 text-white" : "bg-stone-100 text-stone-400 cursor-not-allowed"}`}
+                            >
+                              {ok ? "Approve and list" : "Cannot auto-approve"}
+                            </button>
+                            <button
+                              onClick={() => rejectSubmission(sub.id)}
+                              className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium"
+                            >
+                              Reject
+                            </button>
+                          </div>
                         </div>
-                        <h3 className="text-base font-medium text-stone-900 mb-2">
-                          {sub.question}
-                        </h3>
-                        {sub.context && (
-                          <p className="text-xs text-stone-500 mb-3">
-                            {sub.context}
-                          </p>
-                        )}
-                        {sub.endsHint && (
-                          <p className="text-xs text-stone-400 mb-3">
-                            Resolves: {sub.endsHint}
-                          </p>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => approveSubmission(sub.id)}
-                            className="flex-1 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium"
-                          >
-                            Approve and list
-                          </button>
-                          <button
-                            onClick={() => rejectSubmission(sub.id)}
-                            className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -3774,20 +4039,21 @@ export default function Cajuga() {
             setSubmissions(
               submissionRows.map((s) => ({
                 id: s.id,
-                submitter: s.username || "Anonymous",
-                source: "community",
+                submitter: s.submitter || s.username || "Anonymous",
+                source: s.source || "community",
                 time: new Date(s.created_at).toLocaleDateString(),
                 category: s.category,
                 question: s.question,
                 show: s.show,
                 context: s.context,
                 endsHint: s.ends_hint,
-                autoChecks: {
-                  publicResolution: true,
-                  noPerverseIncentive: true,
-                  dignity: true,
-                  valuesAligned: true,
-                },
+                // Rows predating the automation migration have no stored
+                // checks — re-screen them so the admin view is consistent.
+                autoChecks:
+                  s.auto_checks || autoCheckSubmission(s.question || "").checks,
+                rejectReason:
+                  s.reject_reason ??
+                  autoCheckSubmission(s.question || "").rejectReason,
                 status: s.status,
                 supabaseId: s.id,
               })),
