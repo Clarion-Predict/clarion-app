@@ -1061,7 +1061,8 @@ const autoCheckSubmission = (q) => {
   }
   if (FILTER_KEYWORDS.dignity.find((w) => t.includes(w))) {
     checks.dignity = false;
-    r = "Markets on private relationships, health, or personal struggles are out of scope.";
+    r =
+      "Markets on private relationships, health, or personal struggles are out of scope.";
   }
   if (FILTER_KEYWORDS.prohibited.find((w) => t.includes(w))) {
     checks.dignity = false;
@@ -2505,9 +2506,7 @@ const AdminPanel = ({
   const pendingQuestionsRef = useRef(new Set());
   useEffect(() => {
     pendingQuestionsRef.current = new Set(
-      submissions
-        .filter((s) => s.status === "pending")
-        .map((s) => s.question),
+      submissions.filter((s) => s.status === "pending").map((s) => s.question),
     );
   }, [submissions]);
 
@@ -2872,7 +2871,9 @@ const AdminPanel = ({
                       />
                       <span className="text-xs font-mono">automation</span>
                       <span className="text-xs text-stone-500">
-                        {autoRunning ? `running, every ~${autoSpeed}s` : "paused"}
+                        {autoRunning
+                          ? `running, every ~${autoSpeed}s`
+                          : "paused"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -4006,9 +4007,7 @@ export default function Cajuga() {
         }
         // Balance + Monday refill: claim_weekly_refill is server-enforced,
         // creates the row if missing, and returns the current balance.
-        const { data: balanceData } = await supabase.rpc(
-          "claim_weekly_refill",
-        );
+        const { data: balanceData } = await supabase.rpc("claim_weekly_refill");
         if (balanceData) {
           setBalance(balanceData.balance);
         } else if (balanceRow) {
