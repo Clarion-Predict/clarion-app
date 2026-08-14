@@ -7,7 +7,7 @@ import cajugaLogo from "./cajuga-logo.svg";
 //
 // The password is a soft gate for the teaser period, not a security control —
 // it ships in the JS bundle, so treat it like a velvet rope, not a lock.
-const SPLASH_PASSWORD = "cajuga2026";
+const SPLASH_PASSWORD = "Cardinal-236";
 const UNLOCK_KEY = "cajuga_splash_unlocked";
 
 const SplashGate = ({ children }: { children: React.ReactNode }) => {
