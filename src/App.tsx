@@ -68,6 +68,12 @@ const BadgeCheck = Award;
 // ========== FEATURE FLAGS ==========
 const SHOW_PLEDGE = false; // Set to true when real money launches
 
+// Captured at module load, BEFORE supabase-js consumes and strips the
+// recovery hash from the URL — tells us the user arrived via a password
+// reset email link.
+const OPENED_FROM_RECOVERY_LINK =
+  window.location.hash.includes("type=recovery");
+
 // ========== DATA ==========
 const categories = [
   { id: "all", name: "All", icon: Sparkles },
@@ -2259,6 +2265,7 @@ const MyProfileTab = ({
   const [causePrivate, setCausePrivate] = useState(false);
   const [amountsPrivate, setAmountsPrivate] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [bio, setBio] = useState(userProfile?.bio || "");
   const totalPledged = positions.reduce((s, p) => s + p.invested * 0.01, 0);
   const username = demoUser.username || demoUser.email?.split("@")[0] || "you";
@@ -2466,6 +2473,21 @@ const MyProfileTab = ({
           ))}
         </div>
       </div>
+
+      {showChangePassword && (
+        <SetPasswordModal
+          onClose={() => setShowChangePassword(false)}
+          email={demoUser.email}
+          allowEmailFallback={true}
+        />
+      )}
+
+      <button
+        onClick={() => setShowChangePassword(true)}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-stone-200 text-stone-700 text-sm hover:bg-stone-50 mb-3"
+      >
+        <Lock className="w-4 h-4" /> Change password
+      </button>
 
       <button
         onClick={onLogout}
@@ -3602,6 +3624,21 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
     setLoading(false);
   };
 
+  const [resetSent, setResetSent] = useState(false);
+  const handleForgot = async () => {
+    if (!email.includes("@")) {
+      setError("Enter your email above first, then tap Forgot password.");
+      return;
+    }
+    setError("");
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email,
+      { redirectTo: window.location.origin },
+    );
+    if (resetError) setError(resetError.message);
+    else setResetSent(true);
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
@@ -3677,7 +3714,23 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
           />
         </div>
 
+        {view === "login" && (
+          <div className="text-right mb-2">
+            <button
+              onClick={handleForgot}
+              className="text-xs text-stone-500 underline hover:text-stone-700"
+            >
+              Forgot password?
+            </button>
+          </div>
+        )}
+
         {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
+        {resetSent && (
+          <p className="text-xs text-emerald-700 mb-3">
+            Reset link sent — check your email.
+          </p>
+        )}
 
         <button
           onClick={handleSubmit}
@@ -3705,6 +3758,154 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
             {view === "login" ? "Join" : "Sign in"}
           </button>
         </p>
+      </div>
+    </div>
+  );
+};
+
+// ========== SET PASSWORD MODAL ==========
+// Shared by: recovery-link flow, and "Change password" in profile settings.
+const SetPasswordModal = ({ onClose, email, allowEmailFallback }) => {
+  const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+
+  const save = async () => {
+    if (pw.length < 8) {
+      setError("Use at least 8 characters.");
+      return;
+    }
+    if (pw !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setLoading(true);
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: pw,
+    });
+    setLoading(false);
+    if (updateError) {
+      setError(
+        /session|auth|jwt/i.test(updateError.message)
+          ? "Your reset link may have expired. Request a new one from the sign-in screen."
+          : updateError.message,
+      );
+      return;
+    }
+    setDone(true);
+  };
+
+  const sendLink = async () => {
+    setError("");
+    const { error: sendError } = await supabase.auth.resetPasswordForEmail(
+      email,
+      { redirectTo: window.location.origin },
+    );
+    if (sendError) setError(sendError.message);
+    else setLinkSent(true);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-md w-full p-6 md:p-8 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-stone-400"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        {done ? (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-2">
+              Password updated
+            </h2>
+            <p className="text-sm text-stone-500 mb-6">
+              You're signed in and ready to go.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-full bg-stone-900 text-white text-sm"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center mb-5">
+              <Lock className="w-6 h-6 text-stone-800" />
+            </div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-1">
+              Set a new password
+            </h2>
+            <p className="text-sm text-stone-500 mb-6">
+              Pick something you haven't used elsewhere.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                New password
+              </label>
+              <input
+                type="password"
+                value={pw}
+                onChange={(e) => {
+                  setPw(e.target.value);
+                  setError("");
+                }}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
+              />
+            </div>
+            <div className="mb-2">
+              <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                Confirm new password
+              </label>
+              <input
+                type="password"
+                value={confirm}
+                onChange={(e) => {
+                  setConfirm(e.target.value);
+                  setError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && save()}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
+              />
+            </div>
+            {error && <p className="text-xs text-rose-600 mb-2">{error}</p>}
+            {linkSent && (
+              <p className="text-xs text-emerald-700 mb-2">
+                Reset link sent to {email} — check your inbox.
+              </p>
+            )}
+            <button
+              onClick={save}
+              disabled={loading}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium mt-3 disabled:opacity-60"
+            >
+              {loading ? "Saving…" : "Save new password"}
+            </button>
+            {allowEmailFallback && email && (
+              <button
+                onClick={sendLink}
+                className="w-full py-2.5 text-xs text-stone-500 underline mt-2"
+              >
+                Email me a reset link instead
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3884,12 +4085,25 @@ export default function Cajuga() {
   };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
+  // True when the user arrived via a password-reset email link.
+  const [showSetPassword, setShowSetPassword] = useState(
+    OPENED_FROM_RECOVERY_LINK,
+  );
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   // Set when the user comes back from Stripe Checkout (?checkout=success|cancelled)
   const [pendingCheckout, setPendingCheckout] = useState(() =>
     new URLSearchParams(window.location.search).get("checkout"),
   );
   const [checkoutBanner, setCheckoutBanner] = useState(null);
+
+  // Belt-and-braces with OPENED_FROM_RECOVERY_LINK: supabase-js also fires
+  // PASSWORD_RECOVERY when it consumes a reset link's tokens.
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setShowSetPassword(true);
+    });
+    return () => authListener.subscription.unsubscribe();
+  }, []);
 
   // Clean the ?checkout= param off the URL and surface a cancelled banner
   // immediately. The success path waits for auth below.
@@ -4812,6 +5026,14 @@ export default function Cajuga() {
 
       {showBuyCredits && authUser && (
         <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
+      )}
+
+      {showSetPassword && (
+        <SetPasswordModal
+          onClose={() => setShowSetPassword(false)}
+          email={authUser?.email}
+          allowEmailFallback={false}
+        />
       )}
 
       {showWaitlist && (
