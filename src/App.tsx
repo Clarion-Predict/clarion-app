@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 import BuyCreditsModal from "./BuyCreditsModal";
@@ -40,7 +40,6 @@ import {
   FileText,
   Terminal,
   Play,
-  Pause,
   RefreshCw,
   FlaskConical,
   BookOpen,
@@ -836,118 +835,6 @@ const initialWaitlist = [
   { position: 2, email: "early2@example.com", joined: "3d ago" },
 ];
 
-const automationTemplates = [
-  {
-    source: "event-feed",
-    category: "dating",
-    question:
-      "Will the next Bachelor rose ceremony end with a surprise walkout?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "event-feed",
-    category: "housewives",
-    question: "Will this season of RHONY end with a cast shakeup announcement?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "llm-drafted",
-    category: "competition",
-    question:
-      "Will there be a hidden immunity idol played at the next Survivor tribal council?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "llm-drafted",
-    category: "dating",
-    question:
-      "Will Love Island USA drop a surprise recoupling before episode 3?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "scheduled-event",
-    category: "competition",
-    question:
-      "Will The Traitors US finale air without a bonus episode this season?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "community",
-    category: "housewives",
-    question: "Will a new cast member be added to Vanderpump Rules mid-season?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "llm-drafted",
-    category: "lifestyle",
-    question:
-      "Will The Kardashians feature a surprise guest appearance this season?",
-    passes: {
-      publicResolution: true,
-      noPerverseIncentive: true,
-      dignity: true,
-      valuesAligned: true,
-    },
-  },
-  {
-    source: "community",
-    category: "spotlight",
-    question:
-      "Will a specific Love Island contestant win based on early fan polls?",
-    passes: {
-      publicResolution: false,
-      noPerverseIncentive: true,
-      dignity: false,
-      valuesAligned: false,
-    },
-    rejectReason: "Fan polls are not a reliable public resolution source.",
-  },
-  {
-    source: "community",
-    category: "housewives",
-    question:
-      "Will a cast member announce a personal health issue this season?",
-    passes: {
-      publicResolution: false,
-      noPerverseIncentive: false,
-      dignity: false,
-      valuesAligned: false,
-    },
-    rejectReason:
-      "Privacy concern. Markets on personal health situations are not permitted.",
-  },
-];
-
 const initialSubmissions = [
   {
     id: "sub_001",
@@ -1007,24 +894,6 @@ const initialSubmissions = [
   },
 ];
 
-const submitterNames = [
-  "Aisha M.",
-  "Priya K.",
-  "Nina R.",
-  "Sophie L.",
-  "Maya T.",
-  "Lena W.",
-  "Zoe H.",
-  "Chloe G.",
-  "Imani C.",
-  "Riley B.",
-  "Anonymous",
-  "Kai O.",
-  "Rosa V.",
-  "Tanvi A.",
-  "Elena S.",
-  "Daniela P.",
-];
 
 // Keyword screening applied to every submission (community or generated).
 // A failed check blocks one-click approval in the admin console.
@@ -1082,40 +951,6 @@ const autoCheckSubmission = (q) => {
   return { checks, rejectReason: r };
 };
 
-// Don't repeat a template until the whole pool has been used once.
-const usedTemplateQuestions = new Set();
-
-const generateSubmission = () => {
-  const avail = automationTemplates.filter(
-    (t) => !usedTemplateQuestions.has(t.question),
-  );
-  const pool = avail.length > 0 ? avail : automationTemplates;
-  if (avail.length === 0) usedTemplateQuestions.clear();
-  const tmpl = pool[Math.floor(Math.random() * pool.length)];
-  usedTemplateQuestions.add(tmpl.question);
-  const submitter =
-    tmpl.source === "community"
-      ? submitterNames[Math.floor(Math.random() * submitterNames.length)]
-      : tmpl.source === "llm-drafted"
-        ? "Cajuga AI drafted"
-        : tmpl.source === "event-feed"
-          ? "Event feed auto"
-          : "Scheduled event auto";
-  return {
-    id: "sub_auto_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-    submitter,
-    source: tmpl.source,
-    time: new Date().toLocaleString(),
-    category: tmpl.category,
-    question: tmpl.question,
-    context: "Auto-generated for editorial review.",
-    endsHint: "Dec 31, 2026",
-    autoChecks: tmpl.passes,
-    rejectReason: tmpl.rejectReason,
-    status: "pending",
-  };
-};
-
 // Insert a submission row, falling back to the base columns if the
 // submission_automation migration hasn't been applied to this database yet.
 const insertSubmission = async (payload) => {
@@ -1137,6 +972,27 @@ const insertSubmission = async (payload) => {
   }
   return { data, error };
 };
+
+// DB row -> the shape the admin UI renders. Rows predating the automation
+// migration have no stored checks, so re-screen those on the way in.
+const mapSubmissionRow = (s) => ({
+  id: s.id,
+  submitter: s.submitter || s.username || "Anonymous",
+  source: s.source || "community",
+  time: new Date(s.created_at).toLocaleString(),
+  category: s.category,
+  question: s.question,
+  show: s.show,
+  context: s.context,
+  endsHint: s.ends_hint,
+  sourceUrl: s.source_url,
+  sourceTitle: s.source_title,
+  autoChecks: s.auto_checks || autoCheckSubmission(s.question || "").checks,
+  rejectReason:
+    s.reject_reason ?? autoCheckSubmission(s.question || "").rejectReason,
+  status: s.status,
+  supabaseId: s.id,
+});
 
 const communityImpact = {
   totalGiven: 482193,
@@ -2519,72 +2375,39 @@ const AdminPanel = ({
   const [adminTab, setAdminTab] = useState("overview");
   const [resolvingMarket, setResolvingMarket] = useState(null);
   const [cutoffTime, setCutoffTime] = useState("");
-  const [autoRunning, setAutoRunning] = useState(false);
-  const [autoSpeed, setAutoSpeed] = useState(8);
+  const [generating, setGenerating] = useState(false);
+  const [genCount, setGenCount] = useState(3);
+  const [genStatus, setGenStatus] = useState(null);
   const [lastGenerated, setLastGenerated] = useState(null);
 
-  // Questions already pending review, kept in a ref so the auto-run timer
-  // (whose closure would otherwise go stale) always sees the current list.
-  const pendingQuestionsRef = useRef(new Set());
-  useEffect(() => {
-    pendingQuestionsRef.current = new Set(
-      submissions.filter((s) => s.status === "pending").map((s) => s.question),
+  // Ask the generate-markets function for fresh, source-backed questions.
+  // It searches the web, screens against every live and pending question for
+  // duplicates and logical inverses, and returns what survived.
+  const generateMarkets = async () => {
+    setGenerating(true);
+    setGenStatus(null);
+    const { data, error } = await supabase.functions.invoke(
+      "generate-markets",
+      { body: { count: genCount } },
     );
-  }, [submissions]);
-
-  // Walk the template pool until we find a question that isn't already
-  // pending; null when every template is queued for review.
-  const generateFreshSubmission = () => {
-    for (let i = 0; i < automationTemplates.length; i++) {
-      const sub = generateSubmission();
-      if (!pendingQuestionsRef.current.has(sub.question)) return sub;
+    setGenerating(false);
+    if (error || !data || data.error) {
+      console.error("Generation failed:", error || data?.error);
+      setGenStatus({
+        error:
+          data?.error ||
+          "Generation failed — check the generate-markets function logs.",
+      });
+      return;
     }
-    return null;
+    const created = (data.created || []).map(mapSubmissionRow);
+    setSubmissions((prev) => [...created, ...prev]);
+    if (created.length) {
+      setLastGenerated(created[0].id);
+      setTimeout(() => setLastGenerated(null), 4000);
+    }
+    setGenStatus({ created: created.length, skipped: data.skipped || [] });
   };
-
-  // Persist a generated submission so it survives reloads and flows through
-  // the same review pipeline as community submissions.
-  const addGeneratedSubmission = async (sub) => {
-    if (!sub) return;
-    const { data: row, error } = await insertSubmission({
-      user_id: authUser?.id,
-      username: sub.submitter,
-      question: sub.question,
-      show: "",
-      category: sub.category,
-      context: sub.context,
-      ends_hint: sub.endsHint,
-      status: "pending",
-      source: sub.source,
-      submitter: sub.submitter,
-      auto_checks: sub.autoChecks,
-      reject_reason: sub.rejectReason || null,
-    });
-    if (error) console.error("Failed to persist generated submission:", error);
-    setSubmissions((prev) => [{ ...sub, supabaseId: row?.id }, ...prev]);
-    setLastGenerated(sub.id);
-    setTimeout(() => setLastGenerated(null), 1500);
-  };
-
-  const generateOnce = () => addGeneratedSubmission(generateFreshSubmission());
-
-  useEffect(() => {
-    if (!autoRunning) return;
-    let tid;
-    const next = () => {
-      const jitter = (Math.random() - 0.5) * 0.8;
-      const delay = Math.max(2, autoSpeed * (1 + jitter)) * 1000;
-      tid = setTimeout(() => {
-        addGeneratedSubmission(generateFreshSubmission());
-        next();
-      }, delay);
-    };
-    next();
-    return () => {
-      if (tid) clearTimeout(tid);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRunning, autoSpeed]);
 
   const resolveMarket = async (marketId, outcome) => {
     const cutoffDate = cutoffTime ? new Date(cutoffTime) : null;
@@ -2708,6 +2531,8 @@ const AdminPanel = ({
         ends: sub.endsHint || "TBD",
         status: "open",
         trending: false,
+        source_url: sub.sourceUrl || null,
+        source_title: sub.sourceTitle || null,
       })
       .select()
       .single();
@@ -2733,6 +2558,8 @@ const AdminPanel = ({
           trending: newMarketRow.trending,
           ends: newMarketRow.ends,
           status: newMarketRow.status,
+          source_url: newMarketRow.source_url,
+          source_title: newMarketRow.source_title,
         },
       ]);
     }
@@ -2889,50 +2716,72 @@ const AdminPanel = ({
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-1">
                       <div
-                        className={`w-2 h-2 rounded-full ${autoRunning ? "bg-emerald-400 animate-pulse" : "bg-stone-500"}`}
+                        className={`w-2 h-2 rounded-full ${generating ? "bg-emerald-400 animate-pulse" : "bg-stone-500"}`}
                       />
-                      <span className="text-xs font-mono">automation</span>
+                      <span className="text-xs font-mono">
+                        market generation
+                      </span>
                       <span className="text-xs text-stone-500">
-                        {autoRunning
-                          ? `running, every ~${autoSpeed}s`
-                          : "paused"}
+                        {generating
+                          ? "searching the web and drafting…"
+                          : "idle"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <select
-                        value={autoSpeed}
-                        onChange={(e) => setAutoSpeed(Number(e.target.value))}
-                        disabled={autoRunning}
+                        value={genCount}
+                        onChange={(e) => setGenCount(Number(e.target.value))}
+                        disabled={generating}
                         className="text-xs bg-stone-800 border border-stone-700 rounded px-2 py-1"
                       >
-                        <option value="4">4s</option>
-                        <option value="8">8s</option>
-                        <option value="15">15s</option>
-                        <option value="30">30s</option>
+                        <option value="1">1 market</option>
+                        <option value="3">3 markets</option>
+                        <option value="5">5 markets</option>
+                        <option value="8">8 markets</option>
                       </select>
                       <button
-                        onClick={generateOnce}
-                        className="px-3 py-1.5 rounded-md bg-stone-800 text-xs flex items-center gap-1.5"
+                        onClick={generateMarkets}
+                        disabled={generating}
+                        className="px-3 py-1.5 rounded-md bg-emerald-600 text-white text-xs flex items-center gap-1.5 font-medium disabled:opacity-60"
                       >
-                        <Plus className="w-3 h-3" /> One
-                      </button>
-                      <button
-                        onClick={() => setAutoRunning(!autoRunning)}
-                        className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 font-medium ${autoRunning ? "bg-rose-600" : "bg-emerald-600"} text-white`}
-                      >
-                        {autoRunning ? (
-                          <Pause className="w-3 h-3" />
+                        {generating ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
                         ) : (
                           <Play className="w-3 h-3" />
                         )}
-                        {autoRunning ? "Pause" : "Run"}
+                        {generating ? "Generating…" : "Generate"}
                       </button>
                     </div>
                   </div>
                   <div className="text-xs text-stone-500 mt-2">
-                    {automationTemplates.length} templates loaded. Generated
-                    submissions are screened and queued for review below.
+                    Questions are drafted from current web sources, screened
+                    against every live and pending market for duplicates and
+                    logical inverses, and queued for review below. Takes up to a
+                    minute.
                   </div>
+                  {genStatus?.error && (
+                    <div className="mt-2 text-xs text-rose-300">
+                      {genStatus.error}
+                    </div>
+                  )}
+                  {genStatus && !genStatus.error && (
+                    <div className="mt-2 text-xs">
+                      <span className="text-emerald-400">
+                        {genStatus.created} added.
+                      </span>
+                      {genStatus.skipped.length > 0 && (
+                        <span className="text-stone-400">
+                          {" "}
+                          {genStatus.skipped.length} skipped —{" "}
+                          {genStatus.skipped
+                            .map((s) => s.reason)
+                            .filter((r, i, a) => a.indexOf(r) === i)
+                            .join(", ")}
+                          .
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3">
                   {pending === 0 && (
@@ -3005,6 +2854,19 @@ const AdminPanel = ({
                             <p className="text-xs text-stone-400 mb-3">
                               Resolves: {sub.endsHint}
                             </p>
+                          )}
+                          {sub.sourceUrl && (
+                            <a
+                              href={sub.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 mb-3 px-2 py-1 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800 hover:bg-blue-100 max-w-full"
+                            >
+                              <Globe className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">
+                                {sub.sourceTitle || sub.sourceUrl}
+                              </span>
+                            </a>
                           )}
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
                             {[
@@ -4182,6 +4044,8 @@ export default function Cajuga() {
               status: m.status,
               yes_volume: m.yes_volume || 0,
               no_volume: m.no_volume || 0,
+              source_url: m.source_url,
+              source_title: m.source_title,
             })),
           );
         }
@@ -4271,28 +4135,7 @@ export default function Cajuga() {
             .select("*");
 
           if (submissionRows) {
-            setSubmissions(
-              submissionRows.map((s) => ({
-                id: s.id,
-                submitter: s.submitter || s.username || "Anonymous",
-                source: s.source || "community",
-                time: new Date(s.created_at).toLocaleString(),
-                category: s.category,
-                question: s.question,
-                show: s.show,
-                context: s.context,
-                endsHint: s.ends_hint,
-                // Rows predating the automation migration have no stored
-                // checks — re-screen them so the admin view is consistent.
-                autoChecks:
-                  s.auto_checks || autoCheckSubmission(s.question || "").checks,
-                rejectReason:
-                  s.reject_reason ??
-                  autoCheckSubmission(s.question || "").rejectReason,
-                status: s.status,
-                supabaseId: s.id,
-              })),
-            );
+            setSubmissions(submissionRows.map(mapSubmissionRow));
           }
         }
         await loadLeaderboard(session.user.id);
@@ -4924,9 +4767,22 @@ export default function Cajuga() {
             <h1 className="text-2xl md:text-3xl font-serif text-stone-900 leading-tight mb-4">
               {selectedMarket.question}
             </h1>
-            <p className="text-stone-600 leading-relaxed mb-6 text-sm md:text-base">
+            <p className="text-stone-600 leading-relaxed mb-4 text-sm md:text-base">
               {selectedMarket.context}
             </p>
+            {selectedMarket.source_url && (
+              <a
+                href={selectedMarket.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mb-6 px-3 py-2 rounded-xl bg-white/70 border border-stone-200 text-xs text-stone-700 hover:bg-white max-w-full"
+              >
+                <Globe className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
+                <span className="truncate">
+                  Source: {selectedMarket.source_title || selectedMarket.source_url}
+                </span>
+              </a>
+            )}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <button
                 onClick={() => setTradeSide("yes")}
