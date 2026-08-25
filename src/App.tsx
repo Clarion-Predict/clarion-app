@@ -894,7 +894,6 @@ const initialSubmissions = [
   },
 ];
 
-
 // Keyword screening applied to every submission (community or generated).
 // A failed check blocks one-click approval in the admin console.
 const FILTER_KEYWORDS = {
@@ -4779,7 +4778,8 @@ export default function Cajuga() {
               >
                 <Globe className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
                 <span className="truncate">
-                  Source: {selectedMarket.source_title || selectedMarket.source_url}
+                  Source:{" "}
+                  {selectedMarket.source_title || selectedMarket.source_url}
                 </span>
               </a>
             )}
