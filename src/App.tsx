@@ -135,112 +135,7 @@ const initialMarkets = [];
 const initialCommunityUsers = []; // real rows load from Supabase
 
 
-const mockUsers = [
-  {
-    id: "usr_demo",
-    name: "Demo User",
-    email: "demo@cajuga.app",
-    balance: 50,
-    kyc: true,
-    state: "NY",
-    positions: 0,
-  },
-  {
-    id: "usr_001",
-    name: "Leila Cho",
-    email: "leila@example.com",
-    balance: 1247.5,
-    kyc: true,
-    state: "CA",
-    positions: 12,
-  },
-  {
-    id: "usr_002",
-    name: "Marcus Chen",
-    email: "marcus@example.com",
-    balance: 432.2,
-    kyc: true,
-    state: "TX",
-    positions: 8,
-  },
-  {
-    id: "usr_003",
-    name: "Sarah Kim",
-    email: "sarahk@example.com",
-    balance: 89.75,
-    kyc: false,
-    state: "FL",
-    positions: 0,
-    flag: "kyc_pending",
-  },
-  {
-    id: "usr_004",
-    name: "Jane Doe",
-    email: "jane@example.com",
-    balance: 5000,
-    kyc: true,
-    state: "WA",
-    positions: 3,
-    flag: "high_deposit",
-  },
-];
 
-const initialLedger = [
-  {
-    id: "le_001",
-    userId: "usr_001",
-    type: "deposit",
-    amount: 500,
-    ref: "stripe_ch_3NxY2kL",
-    ts: "2026-04-18 14:32:01",
-    desc: "Card deposit, Visa ending 4242",
-  },
-  {
-    id: "le_002",
-    userId: "usr_001",
-    type: "trade",
-    amount: -50,
-    ref: "trd_8821",
-    ts: "2026-04-18 14:45:23",
-    desc: "YES at 62 cents, Wicked",
-  },
-  {
-    id: "le_003",
-    userId: "usr_001",
-    type: "fee",
-    amount: -1,
-    ref: "trd_8821",
-    ts: "2026-04-18 14:45:23",
-    desc: "Trading fee 2 percent",
-  },
-  {
-    id: "le_004",
-    userId: "usr_001",
-    type: "pledge",
-    amount: -0.5,
-    ref: "trd_8821",
-    ts: "2026-04-18 14:45:23",
-    desc: "1 percent pledge to mental health initiatives",
-  },
-  {
-    id: "le_005",
-    userId: "usr_002",
-    type: "deposit",
-    amount: 200,
-    ref: "stripe_ch_3NxY9qR",
-    ts: "2026-04-18 09:12:44",
-    desc: "ACH deposit via Plaid",
-  },
-  {
-    id: "le_006",
-    userId: "usr_002",
-    type: "trade",
-    amount: -75,
-    ref: "trd_8804",
-    ts: "2026-04-18 11:03:12",
-    desc: "NO at 77 cents, PFML Act",
-  },
-];
 
 const initialWaitlist = []; // real rows load from Supabase
 
@@ -1711,9 +1606,6 @@ const AdminPanel = ({
   onClose,
   markets,
   setMarkets,
-  ledger,
-  setLedger,
-  users,
   submissions,
   setSubmissions,
   waitlist,
@@ -1726,6 +1618,41 @@ const AdminPanel = ({
   const [adminTab, setAdminTab] = useState("overview");
   const [resolvingMarket, setResolvingMarket] = useState(null);
   const [cutoffTime, setCutoffTime] = useState("");
+
+  // Real data, read through the admin_* security-definer functions. The client
+  // can't query balances or ledger directly -- RLS restricts those to the
+  // owning user, which is deliberate.
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminLedger, setAdminLedger] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [dataError, setDataError] = useState("");
+
+  const loadAdminData = async () => {
+    const [usersRes, ledgerRes, statsRes] = await Promise.all([
+      supabase.rpc("admin_user_overview"),
+      supabase.rpc("admin_ledger", { p_limit: 200 }),
+      supabase.rpc("admin_stats"),
+    ]);
+    const failure = usersRes.error || ledgerRes.error || statsRes.error;
+    if (failure) {
+      console.error("Admin data load failed:", failure);
+      setDataError(
+        /function|does not exist/i.test(failure.message || "")
+          ? "Admin functions are missing — run `npx supabase db push`."
+          : failure.message,
+      );
+      return;
+    }
+    setDataError("");
+    setAdminUsers(usersRes.data || []);
+    setAdminLedger(ledgerRes.data || []);
+    setStats(statsRes.data || null);
+  };
+
+  useEffect(() => {
+    loadAdminData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [generating, setGenerating] = useState(false);
   const [genCount, setGenCount] = useState(3);
   const [genStatus, setGenStatus] = useState(null);
@@ -1842,23 +1769,9 @@ const AdminPanel = ({
       if (freshBalance) setBalance(freshBalance.balance);
     }
 
-    setLedger((prev) => [
-      {
-        id: "le_" + Date.now(),
-        userId: "system",
-        type: "resolution",
-        amount: 0,
-        ref: "mkt_" + marketId,
-        ts: new Date().toISOString().replace("T", " ").slice(0, 19),
-        desc:
-          "Market resolved: " +
-          outcome.toUpperCase() +
-          (cutoffDate
-            ? " (cutoff: " + cutoffDate.toLocaleTimeString() + ")"
-            : ""),
-      },
-      ...prev,
-    ]);
+    // resolve_market wrote the real payout/refund rows; pull them in.
+    await loadAdminData();
+
     setResolvingMarket(null);
     setCutoffTime("");
   };
@@ -1938,15 +1851,9 @@ const AdminPanel = ({
     }
   };
 
-  const totalDeposits = ledger
-    .filter((e) => e.type === "deposit")
-    .reduce((s, e) => s + e.amount, 0);
-  const totalFees = ledger
-    .filter((e) => e.type === "fee")
-    .reduce((s, e) => s + Math.abs(e.amount), 0);
-  const totalPledge = ledger
-    .filter((e) => e.type === "pledge")
-    .reduce((s, e) => s + Math.abs(e.amount), 0);
+  const totalDeposits = Number(stats?.deposits ?? 0);
+  const totalFees = Number(stats?.fees_collected ?? 0);
+  const totalPledge = Number(stats?.charity_pledged ?? 0);
   const pending = submissions.filter((s) => s.status === "pending").length;
 
   return (
@@ -2018,14 +1925,14 @@ const AdminPanel = ({
                 <h1 className="text-xl font-medium text-stone-900 mb-1">
                   Platform overview
                 </h1>
-                <p className="text-xs text-stone-500 mb-5">Prototype data</p>
+                <p className="text-xs text-stone-500 mb-5">Live data from Supabase</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-4 rounded-lg bg-white border border-stone-200">
                     <div className="text-xs text-stone-500 uppercase mb-1">
                       Users
                     </div>
                     <div className="text-2xl font-medium text-stone-900">
-                      {users.length}
+                      {stats?.users ?? adminUsers.length}
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-white border border-stone-200">
@@ -2271,42 +2178,80 @@ const AdminPanel = ({
             )}
             {adminTab === "users" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-4">
-                  Users
-                </h1>
-                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-xl font-medium text-stone-900">
+                    Users{" "}
+                    <span className="text-sm text-stone-400">
+                      ({adminUsers.length})
+                    </span>
+                  </h1>
+                  <button
+                    onClick={loadAdminData}
+                    className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                  </button>
+                </div>
+                {dataError && (
+                  <div className="mb-3 p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                    {dataError}
+                  </div>
+                )}
+                <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-stone-50 border-b border-stone-200">
                       <tr className="text-xs uppercase text-stone-500">
                         <th className="text-left px-4 py-3">User</th>
-                        <th className="text-left px-4 py-3">KYC</th>
+                        <th className="text-left px-4 py-3">Joined</th>
+                        <th className="text-right px-4 py-3">Open bets</th>
+                        <th className="text-right px-4 py-3">At risk</th>
                         <th className="text-right px-4 py-3">Balance</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
-                      {users.map((u) => (
-                        <tr key={u.id}>
+                      {adminUsers.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-8 text-center text-stone-400 text-sm"
+                          >
+                            No users yet.
+                          </td>
+                        </tr>
+                      )}
+                      {adminUsers.map((u) => (
+                        <tr key={u.user_id}>
                           <td className="px-4 py-3">
-                            <div className="font-medium text-stone-900">
-                              {u.name}
+                            <div className="font-medium text-stone-900 flex items-center gap-2">
+                              {u.username || "—"}
+                              {u.is_admin && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                                  admin
+                                </span>
+                              )}
+                              {Number(u.practice_credits) > 0 && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                  practice
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-stone-500">
                               {u.email}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            {u.kyc ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                Verified
-                              </span>
-                            ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                Pending
-                              </span>
-                            )}
+                          <td className="px-4 py-3 text-xs text-stone-500">
+                            {u.joined_at
+                              ? new Date(u.joined_at).toLocaleDateString()
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-stone-700">
+                            {u.open_positions}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-stone-700">
+                            ${Number(u.total_staked).toFixed(2)}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-stone-900">
-                            ${u.balance.toFixed(2)}
+                            ${Number(u.balance).toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -2420,45 +2365,93 @@ const AdminPanel = ({
             )}
             {adminTab === "ledger" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-1">
-                  Ledger
-                </h1>
+                <div className="flex items-center justify-between mb-1">
+                  <h1 className="text-xl font-medium text-stone-900">Ledger</h1>
+                  <button
+                    onClick={loadAdminData}
+                    className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                  </button>
+                </div>
                 <p className="text-xs text-stone-500 mb-4">
-                  {ledger.length} entries
+                  {adminLedger.length} most recent entries, newest first. Every
+                  row shows the balance it left behind, so a trade reads
+                  stake &rarr; fee &rarr; pledge.
                 </p>
-                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                {dataError && (
+                  <div className="mb-3 p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                    {dataError}
+                  </div>
+                )}
+                <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
                   <table className="w-full text-sm font-mono">
                     <thead className="bg-stone-50 border-b border-stone-200">
                       <tr className="text-xs uppercase text-stone-500 font-sans">
+                        <th className="text-left px-3 py-2">When</th>
                         <th className="text-left px-3 py-2">User</th>
                         <th className="text-left px-3 py-2">Type</th>
                         <th className="text-right px-3 py-2">Amount</th>
+                        <th className="text-right px-3 py-2">Balance after</th>
                         <th className="text-left px-3 py-2 hidden md:table-cell">
                           Description
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
-                      {ledger.map((e) => (
+                      {adminLedger.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-3 py-8 text-center text-stone-400 text-sm font-sans"
+                          >
+                            No ledger entries yet.
+                          </td>
+                        </tr>
+                      )}
+                      {adminLedger.map((e) => (
                         <tr key={e.id} className="text-xs">
+                          <td className="px-3 py-2 text-stone-500 whitespace-nowrap">
+                            {e.created_at
+                              ? new Date(e.created_at).toLocaleString()
+                              : "—"}
+                          </td>
                           <td className="px-3 py-2 text-stone-700">
-                            {e.userId}
+                            {e.username || e.email || "—"}
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`px-1.5 py-0.5 rounded text-xs ${e.type === "deposit" ? "bg-emerald-100 text-emerald-700" : e.type === "trade" ? "bg-blue-100 text-blue-700" : e.type === "pledge" ? "bg-amber-100 text-amber-700" : "bg-stone-100 text-stone-700"}`}
+                              className={`px-1.5 py-0.5 rounded text-xs ${
+                                e.type === "deposit" || e.type === "payout"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : e.type === "trade"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : e.type === "pledge"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : e.type === "fee"
+                                        ? "bg-purple-100 text-purple-700"
+                                        : e.type === "refund"
+                                          ? "bg-sky-100 text-sky-700"
+                                          : "bg-stone-100 text-stone-700"
+                              }`}
                             >
                               {e.type}
                             </span>
                           </td>
                           <td
-                            className={`px-3 py-2 text-right ${e.amount >= 0 ? "text-emerald-700" : "text-rose-700"}`}
+                            className={`px-3 py-2 text-right ${Number(e.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}
                           >
-                            {e.amount >= 0 ? "+" : ""}
-                            {e.amount.toFixed(2)}
+                            {Number(e.amount) >= 0 ? "+" : ""}
+                            {Number(e.amount).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-stone-700">
+                            {e.balance_after === null ||
+                            e.balance_after === undefined
+                              ? "—"
+                              : Number(e.balance_after).toFixed(2)}
                           </td>
                           <td className="px-3 py-2 text-stone-600 hidden md:table-cell">
-                            {e.desc}
+                            {e.description}
                           </td>
                         </tr>
                       ))}
@@ -3298,8 +3291,6 @@ export default function Cajuga() {
   }>({ bio: "", cause: "", accuracy: 0, totalResolved: 0 });
 
   const [markets, setMarkets] = useState(initialMarkets);
-  const [ledger, setLedger] = useState(initialLedger);
-  const [users] = useState(mockUsers);
   const [waitlist, setWaitlist] = useState(initialWaitlist);
   const [submissions, setSubmissions] = useState(initialSubmissions);
   const [communityUsers, setCommunityUsers] = useState(initialCommunityUsers);
@@ -4327,9 +4318,6 @@ export default function Cajuga() {
           onClose={() => setShowAdmin(false)}
           markets={markets}
           setMarkets={setMarkets}
-          ledger={ledger}
-          setLedger={setLedger}
-          users={users}
           submissions={submissions}
           setSubmissions={setSubmissions}
           waitlist={waitlist}
