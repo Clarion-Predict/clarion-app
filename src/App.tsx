@@ -1633,17 +1633,31 @@ const AdminPanel = ({
       supabase.rpc("admin_ledger", { p_limit: 200 }),
       supabase.rpc("admin_stats"),
     ]);
-    const failure = usersRes.error || ledgerRes.error || statsRes.error;
-    if (failure) {
-      console.error("Admin data load failed:", failure);
-      setDataError(
-        /function|does not exist/i.test(failure.message || "")
-          ? "Admin functions are missing — run `npx supabase db push`."
-          : failure.message,
+    // Report each call separately -- collapsing them made one broken
+    // function look like all three were down.
+    const failures = [
+      { name: "users", error: usersRes.error },
+      { name: "ledger", error: ledgerRes.error },
+      { name: "stats", error: statsRes.error },
+    ].filter((r) => r.error);
+
+    if (failures.length) {
+      failures.forEach((r) => console.error(`admin ${r.name}:`, r.error));
+      const missing = failures.some((r) =>
+        /function|does not exist/i.test(r.error?.message || ""),
       );
-      return;
+      setDataError(
+        missing
+          ? "Admin functions are missing or outdated — run `npx supabase db push`."
+          : failures
+              .map((r) => `${r.name}: ${r.error?.message}`)
+              .join(" · "),
+      );
+    } else {
+      setDataError("");
     }
-    setDataError("");
+
+    // Show whatever did succeed rather than blanking every tab.
     setAdminUsers(usersRes.data || []);
     setAdminLedger(ledgerRes.data || []);
     setStats(statsRes.data || null);
