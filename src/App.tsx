@@ -1602,6 +1602,80 @@ const MyProfileTab = ({
 };
 
 // ========== ADMIN PANEL ==========
+// Shared by the Ledger tab and the per-user drill-down so the two can't drift.
+const LEDGER_TYPE_STYLE = {
+  deposit: "bg-emerald-100 text-emerald-700",
+  payout: "bg-emerald-100 text-emerald-700",
+  trade: "bg-blue-100 text-blue-700",
+  pledge: "bg-amber-100 text-amber-700",
+  fee: "bg-purple-100 text-purple-700",
+  refund: "bg-sky-100 text-sky-700",
+};
+
+const LedgerTable = ({ rows, showUser = true, emptyText = "No entries yet." }) => (
+  <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
+    <table className="w-full text-sm font-mono">
+      <thead className="bg-stone-50 border-b border-stone-200">
+        <tr className="text-xs uppercase text-stone-500 font-sans">
+          <th className="text-left px-3 py-2">When</th>
+          {showUser && <th className="text-left px-3 py-2">User</th>}
+          <th className="text-left px-3 py-2">Type</th>
+          <th className="text-right px-3 py-2">Amount</th>
+          <th className="text-right px-3 py-2">Balance after</th>
+          <th className="text-left px-3 py-2 hidden md:table-cell">
+            Description
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-stone-100">
+        {rows.length === 0 && (
+          <tr>
+            <td
+              colSpan={showUser ? 6 : 5}
+              className="px-3 py-8 text-center text-stone-400 text-sm font-sans"
+            >
+              {emptyText}
+            </td>
+          </tr>
+        )}
+        {rows.map((e) => (
+          <tr key={e.id} className="text-xs">
+            <td className="px-3 py-2 text-stone-500 whitespace-nowrap">
+              {e.created_at ? new Date(e.created_at).toLocaleString() : "—"}
+            </td>
+            {showUser && (
+              <td className="px-3 py-2 text-stone-700">
+                {e.username || e.email || "—"}
+              </td>
+            )}
+            <td className="px-3 py-2">
+              <span
+                className={`px-1.5 py-0.5 rounded text-xs ${LEDGER_TYPE_STYLE[e.type] || "bg-stone-100 text-stone-700"}`}
+              >
+                {e.type}
+              </span>
+            </td>
+            <td
+              className={`px-3 py-2 text-right ${Number(e.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}
+            >
+              {Number(e.amount) >= 0 ? "+" : ""}
+              {Number(e.amount).toFixed(2)}
+            </td>
+            <td className="px-3 py-2 text-right text-stone-700">
+              {e.balance_after === null || e.balance_after === undefined
+                ? "—"
+                : Number(e.balance_after).toFixed(2)}
+            </td>
+            <td className="px-3 py-2 text-stone-600 hidden md:table-cell">
+              {e.description}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
 const AdminPanel = ({
   onClose,
   markets,
@@ -1626,6 +1700,27 @@ const AdminPanel = ({
   const [adminLedger, setAdminLedger] = useState([]);
   const [stats, setStats] = useState(null);
   const [dataError, setDataError] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userLedger, setUserLedger] = useState([]);
+  const [userLedgerLoading, setUserLedgerLoading] = useState(false);
+
+  // Same function as the Ledger tab, filtered to one account.
+  const openUser = async (u) => {
+    setSelectedUser(u);
+    setUserLedger([]);
+    setUserLedgerLoading(true);
+    const { data, error } = await supabase.rpc("admin_ledger", {
+      p_limit: 500,
+      p_user_id: u.user_id,
+    });
+    setUserLedgerLoading(false);
+    if (error) {
+      console.error("admin_ledger (user):", error);
+      setDataError(error.message);
+      return;
+    }
+    setUserLedger(data || []);
+  };
 
   const loadAdminData = async () => {
     const [usersRes, ledgerRes, statsRes] = await Promise.all([
@@ -2190,7 +2285,81 @@ const AdminPanel = ({
                 </div>
               </div>
             )}
-            {adminTab === "users" && (
+            {adminTab === "users" && selectedUser && (
+              <div>
+                <button
+                  onClick={() => setSelectedUser(null)}
+                  className="flex items-center gap-2 text-stone-600 mb-4 text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" /> All users
+                </button>
+
+                <div className="bg-white rounded-lg border border-stone-200 p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h1 className="text-xl font-medium text-stone-900">
+                      {selectedUser.username || "—"}
+                    </h1>
+                    {selectedUser.is_admin && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                        admin
+                      </span>
+                    )}
+                    {Number(selectedUser.practice_credits) > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                        practice
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-stone-500 mb-4">
+                    {selectedUser.email} · joined{" "}
+                    {selectedUser.joined_at
+                      ? new Date(selectedUser.joined_at).toLocaleDateString()
+                      : "—"}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                    {[
+                      {
+                        l: "Balance",
+                        v: `$${Number(selectedUser.balance).toFixed(2)}`,
+                      },
+                      {
+                        l: "Practice credits",
+                        v: `$${Number(selectedUser.practice_credits).toFixed(2)}`,
+                      },
+                      { l: "Open bets", v: selectedUser.open_positions },
+                      {
+                        l: "At risk",
+                        v: `$${Number(selectedUser.total_staked).toFixed(2)}`,
+                      },
+                      {
+                        l: "Payouts + refunds",
+                        v: `$${Number(selectedUser.net_payouts).toFixed(2)}`,
+                      },
+                    ].map((s) => (
+                      <div key={s.l} className="p-2 rounded bg-stone-50">
+                        <div className="text-stone-500">{s.l}</div>
+                        <div className="text-base font-medium text-stone-900">
+                          {s.v}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-xs text-stone-500 mb-2">
+                  {userLedgerLoading
+                    ? "Loading transactions…"
+                    : `${userLedger.length} transaction${userLedger.length === 1 ? "" : "s"}, newest first`}
+                </p>
+                <LedgerTable
+                  rows={userLedger}
+                  showUser={false}
+                  emptyText="No transactions for this account yet."
+                />
+              </div>
+            )}
+
+            {adminTab === "users" && !selectedUser && (
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h1 className="text-xl font-medium text-stone-900">
@@ -2220,13 +2389,14 @@ const AdminPanel = ({
                         <th className="text-right px-4 py-3">Open bets</th>
                         <th className="text-right px-4 py-3">At risk</th>
                         <th className="text-right px-4 py-3">Balance</th>
+                        <th className="px-2"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {adminUsers.length === 0 && (
                         <tr>
                           <td
-                            colSpan={5}
+                            colSpan={6}
                             className="px-4 py-8 text-center text-stone-400 text-sm"
                           >
                             No users yet.
@@ -2234,7 +2404,11 @@ const AdminPanel = ({
                         </tr>
                       )}
                       {adminUsers.map((u) => (
-                        <tr key={u.user_id}>
+                        <tr
+                          key={u.user_id}
+                          onClick={() => openUser(u)}
+                          className="cursor-pointer hover:bg-stone-50"
+                        >
                           <td className="px-4 py-3">
                             <div className="font-medium text-stone-900 flex items-center gap-2">
                               {u.username || "—"}
@@ -2266,6 +2440,9 @@ const AdminPanel = ({
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-stone-900">
                             ${Number(u.balance).toFixed(2)}
+                          </td>
+                          <td className="px-2 text-stone-300">
+                            <ChevronRight className="w-4 h-4" />
                           </td>
                         </tr>
                       ))}
@@ -2398,80 +2575,7 @@ const AdminPanel = ({
                     {dataError}
                   </div>
                 )}
-                <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
-                  <table className="w-full text-sm font-mono">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr className="text-xs uppercase text-stone-500 font-sans">
-                        <th className="text-left px-3 py-2">When</th>
-                        <th className="text-left px-3 py-2">User</th>
-                        <th className="text-left px-3 py-2">Type</th>
-                        <th className="text-right px-3 py-2">Amount</th>
-                        <th className="text-right px-3 py-2">Balance after</th>
-                        <th className="text-left px-3 py-2 hidden md:table-cell">
-                          Description
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-100">
-                      {adminLedger.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-3 py-8 text-center text-stone-400 text-sm font-sans"
-                          >
-                            No ledger entries yet.
-                          </td>
-                        </tr>
-                      )}
-                      {adminLedger.map((e) => (
-                        <tr key={e.id} className="text-xs">
-                          <td className="px-3 py-2 text-stone-500 whitespace-nowrap">
-                            {e.created_at
-                              ? new Date(e.created_at).toLocaleString()
-                              : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-stone-700">
-                            {e.username || e.email || "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-xs ${
-                                e.type === "deposit" || e.type === "payout"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : e.type === "trade"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : e.type === "pledge"
-                                      ? "bg-amber-100 text-amber-700"
-                                      : e.type === "fee"
-                                        ? "bg-purple-100 text-purple-700"
-                                        : e.type === "refund"
-                                          ? "bg-sky-100 text-sky-700"
-                                          : "bg-stone-100 text-stone-700"
-                              }`}
-                            >
-                              {e.type}
-                            </span>
-                          </td>
-                          <td
-                            className={`px-3 py-2 text-right ${Number(e.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}
-                          >
-                            {Number(e.amount) >= 0 ? "+" : ""}
-                            {Number(e.amount).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-right text-stone-700">
-                            {e.balance_after === null ||
-                            e.balance_after === undefined
-                              ? "—"
-                              : Number(e.balance_after).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-stone-600 hidden md:table-cell">
-                            {e.description}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <LedgerTable rows={adminLedger} />
               </div>
             )}
             {adminTab === "pledge" && (
