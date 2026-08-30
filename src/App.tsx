@@ -3463,6 +3463,7 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -3480,9 +3481,22 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
       setError("Please choose a username.");
       return;
     }
+    if (view === "signup" && !inviteCode.trim()) {
+      setError("An invite code is required while Cajuga is in private beta.");
+      return;
+    }
     setLoading(true);
-    onAuth({ mode: view, email, password, username });
+    const result = await onAuth({
+      mode: view,
+      email,
+      password,
+      username,
+      inviteCode: inviteCode.trim(),
+    });
     setLoading(false);
+    // onAuth returns an error string when signup/sign-in is rejected so the
+    // message lands in the form instead of an alert().
+    if (result?.error) setError(result.error);
   };
 
   const [resetSent, setResetSent] = useState(false);
@@ -3527,6 +3541,24 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
             ? "Sign in to your account"
             : "Practice mode · No real money"}
         </p>
+
+        {view === "signup" && (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-stone-600 mb-1.5">
+              Invite code
+            </label>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="CAJUGA-XXXX"
+              className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900 tracking-wide"
+            />
+            <p className="text-xs text-stone-400 mt-1">
+              Cajuga is invite-only during the private beta.
+            </p>
+          </div>
+        )}
 
         {view === "signup" && (
           <div className="mb-4">
@@ -4149,40 +4181,50 @@ export default function Cajuga() {
 
   const handleAuth = async (userData) => {
     if (userData.mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
+      // Signup runs server-side: the edge function checks the invite code,
+      // creates the account, and grants the starting credits. Public signup is
+      // disabled in Supabase, so this is the only way in.
+      const { data: signupData, error: signupError } =
+        await supabase.functions.invoke("signup-with-invite", {
+          body: {
+            email: userData.email,
+            password: userData.password,
+            username: userData.username,
+            code: userData.inviteCode,
+          },
+        });
+      if (signupError || !signupData || signupData.error) {
+        return {
+          error:
+            signupData?.error ||
+            "Could not create your account. Check your invite code and try again.",
+        };
+      }
+      // The function created the account but not a session — sign in for one.
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: userData.email,
         password: userData.password,
       });
-      if (error) {
-        alert(error.message);
-        return;
+      if (error || !data.user) {
+        return {
+          error: "Account created. Please sign in with your new password.",
+        };
       }
-      if (data.user) {
-        await supabase.from("profiles").insert({
-          user_id: data.user.id,
-          username: userData.username,
-          bio: "",
-          cause: "",
-        });
-        // Starting balance is created server-side (fixed at $50) — clients
-        // can no longer insert into balances directly.
-        await supabase.rpc("ensure_balance");
-        setAuthUser({
-          id: data.user.id,
-          email: userData.email,
-          username: userData.username,
-        });
-        setAuthScreen(null);
-        setOnboarding(true);
-      }
+      setAuthUser({
+        id: data.user.id,
+        email: userData.email,
+        username: userData.username,
+      });
+      setBalance(signupData.granted ?? 200);
+      setAuthScreen(null);
+      setOnboarding(true);
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: userData.email,
         password: userData.password,
       });
       if (error) {
-        alert(error.message);
-        return;
+        return { error: error.message };
       }
       if (data.user) {
         const { data: profile } = await supabase
@@ -4540,7 +4582,11 @@ export default function Cajuga() {
       );
       const newNoPrice = 100 - newYesPrice;
 
-      setBalance(Math.max(0, balance - cost));
+      // Mirror the server's fee-on-top math so the logged-out demo behaves
+      // like a real account.
+      const demoFees =
+        Math.round(cost * 0.02 * 100) / 100 + Math.round(cost * 0.01 * 100) / 100;
+      setBalance(Math.max(0, balance - cost - demoFees));
       setMarkets((prev) =>
         prev.map((m) =>
           m.id === selectedMarket.id
@@ -4595,7 +4641,12 @@ export default function Cajuga() {
     const price = tradeSide === "yes" ? selectedMarket.yes : selectedMarket.no;
     const shares = Math.floor(tradeAmount / (price / 100));
     const cost = tradeAmount;
-    const pledgeAmount = cost * 0.01;
+    // Fees are charged on top of the stake and must round the same way
+    // place_trade does, or "balance after" won't match what actually happens.
+    const platformFee = Math.round(cost * 0.02 * 100) / 100;
+    const pledgeAmount = Math.round(cost * 0.01 * 100) / 100;
+    const totalCost = cost + platformFee + pledgeAmount;
+    const insufficient = totalCost > balance;
     const cause = causesByCategory[selectedMarket.category];
     return (
       <div className="min-h-screen bg-amber-50/40 flex items-center justify-center p-4">
@@ -4695,9 +4746,29 @@ export default function Cajuga() {
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-stone-200">
-                  <span className="text-stone-500">Balance</span>
+                  <span className="text-stone-500">Stake</span>
                   <span className="text-stone-900 font-medium">
-                    ${balance.toFixed(2)}
+                    ${cost.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Fees (3%)</span>
+                  <span className="text-stone-900 font-medium">
+                    ${(platformFee + pledgeAmount).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Total cost</span>
+                  <span className="text-stone-900 font-medium">
+                    ${totalCost.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-stone-200">
+                  <span className="text-stone-500">Balance after</span>
+                  <span
+                    className={`font-medium ${insufficient ? "text-rose-600" : "text-stone-900"}`}
+                  >
+                    ${(balance - totalCost).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -4718,12 +4789,12 @@ export default function Cajuga() {
               </p>
               <button
                 onClick={handleTrade}
-                disabled={tradeAmount > balance}
-                className={`w-full py-4 rounded-2xl font-medium text-white ${tradeSide === "yes" ? "bg-emerald-600" : "bg-rose-600"}`}
+                disabled={insufficient}
+                className={`w-full py-4 rounded-2xl font-medium text-white disabled:opacity-60 ${tradeSide === "yes" ? "bg-emerald-600" : "bg-rose-600"}`}
               >
-                {tradeAmount > balance
+                {insufficient
                   ? "Insufficient balance"
-                  : "Confirm practice trade"}
+                  : `Confirm — $${totalCost.toFixed(2)}`}
               </button>
             </div>
           )}
