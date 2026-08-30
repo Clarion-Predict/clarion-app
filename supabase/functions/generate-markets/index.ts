@@ -170,8 +170,15 @@ Deno.serve(async (req) => {
       ...(pendingRows ?? []).map((s) => s.question),
     ].filter(Boolean);
 
+    // Identity-linked API keys must name the workspace each request acts in;
+    // classic workspace keys don't need this and ignore it. Setting the secret
+    // is harmless either way, so it's optional rather than required.
+    const workspaceId = Deno.env.get("ANTHROPIC_WORKSPACE_ID");
     const anthropic = new Anthropic({
       apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
+      ...(workspaceId
+        ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } }
+        : {}),
     });
 
     const today = new Date().toISOString().slice(0, 10);
@@ -289,6 +296,14 @@ ${existingQuestions.length ? existingQuestions.map((q) => `- ${q}`).join("\n") :
     });
   } catch (err) {
     console.error("generate-markets error:", err);
-    return json({ error: "Generation failed. Check the function logs." }, 500);
+    const anthropicMessage =
+      typeof err === "object" && err !== null
+        ? (err as any)?.error?.error?.message
+        : null;
+    const message =
+      anthropicMessage ||
+      (err instanceof Error ? err.message : null) ||
+      "Generation failed. Check the function logs.";
+    return json({ error: message }, 500);
   }
 });
