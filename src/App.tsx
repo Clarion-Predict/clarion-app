@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 import BuyCreditsModal from "./BuyCreditsModal";
+import TermsModal from "./TermsModal";
 import {
   Search,
   TrendingUp,
@@ -2927,6 +2928,7 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -2992,6 +2994,7 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
         >
           <X className="w-5 h-5" />
         </button>
+        {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
         <div className="flex items-center gap-2 mb-6">
           <Logo size={28} />
           <span className="brand-font text-stone-900">Cajuga</span>
@@ -3079,6 +3082,19 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
               Forgot password?
             </button>
           </div>
+        )}
+
+        {view === "signup" && (
+          <p className="text-xs text-stone-500 leading-relaxed mb-3">
+            By creating an account you agree to Cajuga's{" "}
+            <button
+              onClick={() => setShowTerms(true)}
+              className="text-stone-900 font-medium underline"
+            >
+              Terms of Use and User Agreement
+            </button>
+            .
+          </p>
         )}
 
         {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
@@ -3443,6 +3459,7 @@ export default function Cajuga() {
   const [showSetPassword, setShowSetPassword] = useState(
     OPENED_FROM_RECOVERY_LINK,
   );
+  const [showTerms, setShowTerms] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   // Set when the user comes back from Stripe Checkout (?checkout=success|cancelled)
   const [pendingCheckout, setPendingCheckout] = useState(() =>
@@ -4412,6 +4429,8 @@ export default function Cajuga() {
         </div>
       )}
 
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+
       {showBuyCredits && authUser && (
         <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
       )}
@@ -5118,6 +5137,14 @@ export default function Cajuga() {
             <p className="text-sm text-stone-700 leading-relaxed">
               We'd rather run fewer markets cleanly than more markets badly.
             </p>
+            <div className="mt-8 pt-5 border-t border-stone-200">
+              <button
+                onClick={() => setShowTerms(true)}
+                className="text-sm text-stone-600 underline hover:text-stone-900"
+              >
+                Terms of Use and User Agreement
+              </button>
+            </div>
           </div>
         )}
       </div>
