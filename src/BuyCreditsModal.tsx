@@ -11,21 +11,41 @@ const PACKAGES = [
   { id: "max", credits: 50, price: "$50" },
 ];
 
+// Mirrors MIN_CUSTOM_USD / MAX_CUSTOM_USD in create-checkout-session. These are
+// for the message and the input's bounds only — the server re-checks and is
+// the one that decides.
+const MIN_CUSTOM = 5;
+const MAX_CUSTOM = 500;
+
 const BuyCreditsModal = ({ onClose }) => {
   const [selected, setSelected] = useState("plus");
+  const [customAmount, setCustomAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const isCustom = selected === "custom";
+  const customValue = Number(customAmount);
+  const customValid =
+    customAmount !== "" &&
+    Number.isFinite(customValue) &&
+    customValue >= MIN_CUSTOM &&
+    customValue <= MAX_CUSTOM;
+
   const handleCheckout = async () => {
+    if (isCustom && !customValid) {
+      setError(`Enter an amount between $${MIN_CUSTOM} and $${MAX_CUSTOM}.`);
+      return;
+    }
     setLoading(true);
     setError("");
     const { data, error: invokeError } = await supabase.functions.invoke(
       "create-checkout-session",
-      { body: { packageId: selected } },
+      { body: isCustom ? { amount: customValue } : { packageId: selected } },
     );
     if (invokeError || !data?.url) {
       setLoading(false);
-      setError("Couldn't start checkout. Please try again.");
+      // Prefer the server's message — it knows the real limits.
+      setError(data?.error || "Couldn't start checkout. Please try again.");
       return;
     }
     window.location.href = data.url; // off to Stripe's hosted payment page
@@ -77,6 +97,48 @@ const BuyCreditsModal = ({ onClose }) => {
             </button>
           ))}
         </div>
+        {/* Wrapper is a div, not a button: an <input> nested inside a
+            <button> is invalid HTML and focus behaves inconsistently. */}
+        <div
+          className={`w-full p-4 rounded-2xl border mb-5 ${
+            isCustom
+              ? "border-amber-400 bg-amber-50"
+              : "border-stone-200 bg-stone-50"
+          }`}
+        >
+          <button
+            onClick={() => setSelected("custom")}
+            className="w-full text-left"
+          >
+            <div className="text-lg font-serif text-stone-900">
+              Custom amount
+            </div>
+            <div className="text-xs text-stone-500 mt-0.5">
+              ${MIN_CUSTOM}–${MAX_CUSTOM}, $1 = 1 credit
+            </div>
+          </button>
+          {isCustom && (
+            <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-xl bg-white border border-stone-200 focus-within:border-stone-400">
+              <span className="text-lg font-serif text-stone-900">$</span>
+              <input
+                autoFocus
+                type="number"
+                inputMode="decimal"
+                min={MIN_CUSTOM}
+                max={MAX_CUSTOM}
+                step="1"
+                value={customAmount}
+                onChange={(e) => {
+                  setCustomAmount(e.target.value);
+                  setError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && handleCheckout()}
+                placeholder="25"
+                className="flex-1 bg-transparent text-lg font-serif text-stone-900 focus:outline-none w-full"
+              />
+            </div>
+          )}
+        </div>
         {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
         <button
           onClick={handleCheckout}
@@ -84,7 +146,11 @@ const BuyCreditsModal = ({ onClose }) => {
           className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2"
         >
           <CreditCard className="w-4 h-4" />
-          {loading ? "Opening checkout…" : "Continue to payment"}
+          {loading
+            ? "Opening checkout…"
+            : isCustom && customValid
+              ? `Continue — $${customValue.toFixed(2)}`
+              : "Continue to payment"}
         </button>
         <p className="text-xs text-stone-400 text-center mt-3">
           Payments are processed by Stripe. We never see your card details.

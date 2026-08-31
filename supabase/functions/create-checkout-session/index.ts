@@ -11,13 +11,21 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "");
 
-// Prices are defined server-side only. Never trust an amount from the client.
+// Preset prices live here, not in the browser. A custom amount may be
+// requested by the client but is range-checked below before it's charged.
 const CREDIT_PACKAGES: Record<string, { credits: number; amountCents: number; label: string }> = {
   starter: { credits: 5, amountCents: 500, label: "5 credits" },
   standard: { credits: 10, amountCents: 1000, label: "10 credits" },
   plus: { credits: 25, amountCents: 2500, label: "25 credits" },
   max: { credits: 50, amountCents: 5000, label: "50 credits" },
 };
+
+// Bounds for a custom amount. The browser may *request* an amount, but the
+// server decides whether it's acceptable and derives both the Stripe charge
+// and the credit grant from that one validated number -- so the two can never
+// diverge, and nobody can buy $500 of credits for $1.
+const MIN_CUSTOM_USD = 5;
+const MAX_CUSTOM_USD = 500;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,9 +59,38 @@ Deno.serve(async (req) => {
     } = await supabase.auth.getUser();
     if (!user) return json({ error: "Not authenticated" }, 401);
 
-    const { packageId } = await req.json().catch(() => ({}));
-    const pkg = CREDIT_PACKAGES[packageId];
-    if (!pkg) return json({ error: "Unknown credit package" }, 400);
+    const { packageId, amount } = await req.json().catch(() => ({}));
+
+    let credits: number;
+    let amountCents: number;
+    let label: string;
+
+    if (amount !== undefined && amount !== null && amount !== "") {
+      const dollars = Number(amount);
+      if (!Number.isFinite(dollars) || dollars <= 0) {
+        return json({ error: "Enter a valid amount." }, 400);
+      }
+      // Round to the cent before range-checking so 4.999 can't sneak under the
+      // minimum, and so the charge is an exact integer number of cents.
+      const rounded = Math.round(dollars * 100) / 100;
+      if (rounded < MIN_CUSTOM_USD || rounded > MAX_CUSTOM_USD) {
+        return json(
+          {
+            error: `Enter an amount between $${MIN_CUSTOM_USD} and $${MAX_CUSTOM_USD}.`,
+          },
+          400,
+        );
+      }
+      amountCents = Math.round(rounded * 100);
+      credits = rounded;
+      label = `${rounded} credits`;
+    } else {
+      const pkg = CREDIT_PACKAGES[packageId];
+      if (!pkg) return json({ error: "Unknown credit package" }, 400);
+      amountCents = pkg.amountCents;
+      credits = pkg.credits;
+      label = pkg.label;
+    }
 
     const origin =
       req.headers.get("origin") ?? Deno.env.get("SITE_URL") ?? "";
@@ -65,8 +102,8 @@ Deno.serve(async (req) => {
         {
           price_data: {
             currency: "usd",
-            product_data: { name: `Cajuga — ${pkg.label}` },
-            unit_amount: pkg.amountCents,
+            product_data: { name: `Cajuga — ${label}` },
+            unit_amount: amountCents,
           },
           quantity: 1,
         },
@@ -77,7 +114,7 @@ Deno.serve(async (req) => {
       // The webhook reads these to know who to credit and by how much.
       metadata: {
         user_id: user.id,
-        credits: String(pkg.credits),
+        credits: String(credits),
       },
     });
 
