@@ -135,9 +135,6 @@ const initialMarkets = [];
 // ========== MOCK COMMUNITY USERS ==========
 const initialCommunityUsers = []; // real rows load from Supabase
 
-
-
-
 const initialWaitlist = []; // real rows load from Supabase
 
 const initialSubmissions = []; // real rows load from Supabase
@@ -1613,7 +1610,11 @@ const LEDGER_TYPE_STYLE = {
   refund: "bg-sky-100 text-sky-700",
 };
 
-const LedgerTable = ({ rows, showUser = true, emptyText = "No entries yet." }) => (
+const LedgerTable = ({
+  rows,
+  showUser = true,
+  emptyText = "No entries yet.",
+}) => (
   <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
     <table className="w-full text-sm font-mono">
       <thead className="bg-stone-50 border-b border-stone-200">
@@ -1745,9 +1746,7 @@ const AdminPanel = ({
       setDataError(
         missing
           ? "Admin functions are missing or outdated — run `npx supabase db push`."
-          : failures
-              .map((r) => `${r.name}: ${r.error?.message}`)
-              .join(" · "),
+          : failures.map((r) => `${r.name}: ${r.error?.message}`).join(" · "),
       );
     } else {
       setDataError("");
@@ -2035,7 +2034,9 @@ const AdminPanel = ({
                 <h1 className="text-xl font-medium text-stone-900 mb-1">
                   Platform overview
                 </h1>
-                <p className="text-xs text-stone-500 mb-5">Live data from Supabase</p>
+                <p className="text-xs text-stone-500 mb-5">
+                  Live data from Supabase
+                </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-4 rounded-lg bg-white border border-stone-200">
                     <div className="text-xs text-stone-500 uppercase mb-1">
@@ -2568,8 +2569,8 @@ const AdminPanel = ({
                 </div>
                 <p className="text-xs text-stone-500 mb-4">
                   {adminLedger.length} most recent entries, newest first. Every
-                  row shows the balance it left behind, so a trade reads
-                  stake &rarr; fee &rarr; pledge.
+                  row shows the balance it left behind, so a trade reads stake
+                  &rarr; fee &rarr; pledge.
                 </p>
                 {dataError && (
                   <div className="mb-3 p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900">
@@ -3560,101 +3561,112 @@ export default function Cajuga() {
         }
       });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .single();
-        const { data: balanceRow } = await supabase
-          .from("balances")
-          .select("balance")
-          .eq("user_id", session.user.id)
-          .single();
-        const { data: positionRows } = await supabase
-          .from("positions")
-          .select(
-            "id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout",
-          )
-          .eq("user_id", session.user.id);
-        setAuthUser({
-          id: session.user.id,
-          email: session.user.email,
-          username: profile?.username || session.user.email.split("@")[0],
-          returning: true,
-        });
-        if (profile) {
-          setUserProfile({
-            bio: profile.bio || "",
-            cause: profile.cause || "",
-            accuracy: profile.accuracy || 0,
-            totalResolved: profile.total_resolved || 0,
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single();
+          const { data: balanceRow } = await supabase
+            .from("balances")
+            .select("balance")
+            .eq("user_id", session.user.id)
+            .single();
+          const { data: positionRows } = await supabase
+            .from("positions")
+            .select(
+              "id, user_id, market_id, market, category, side, shares, avg_price, invested, resolved, won, payout",
+            )
+            .eq("user_id", session.user.id);
+          setAuthUser({
+            id: session.user.id,
+            email: session.user.email,
+            username: profile?.username || session.user.email.split("@")[0],
+            returning: true,
           });
-        }
-        // Balance + Monday refill: claim_weekly_refill is server-enforced,
-        // creates the row if missing, and returns the current balance.
-        const { data: balanceData } = await supabase.rpc("claim_weekly_refill");
-        if (balanceData) {
-          setBalance(balanceData.balance);
-        } else if (balanceRow) {
-          setBalance(balanceRow.balance);
-        }
-        if (positionRows) {
-          console.log(
-            "positions from supabase:",
-            positionRows.map((p) => ({
-              id: p.id,
-              market: p.market,
-              resolved: p.resolved,
-              won: p.won,
-              payout: p.payout,
-            })),
-          );
-          setPositions(
-            positionRows.map((p) => ({
-              id: p.id,
-              marketId: p.market_id,
-              market: p.market,
-              category: p.category,
-              side: p.side,
-              shares: p.shares,
-              avgPrice: p.avg_price,
-              invested: p.invested,
-              resolved: p.resolved === true,
-              won: p.won === true,
-              payout: p.payout || 0,
-              voided: (p as any).voided === true,
-              createdAt: (p as any).created_at,
-            })),
-          );
-        }
-        const { data: adminRow } = await supabase
-          .from("admins")
-          .select("user_id")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
-        console.log("adminRow:", adminRow);
-        console.log("isAdmin:", !!adminRow);
-        setIsAdmin(!!adminRow);
-
-        if (adminRow) {
-          const { data: submissionRows } = await supabase
-            .from("submissions")
-            .select("*");
-
-          if (submissionRows) {
-            setSubmissions(submissionRows.map(mapSubmissionRow));
+          if (profile) {
+            setUserProfile({
+              bio: profile.bio || "",
+              cause: profile.cause || "",
+              accuracy: profile.accuracy || 0,
+              totalResolved: profile.total_resolved || 0,
+            });
           }
+          // Balance + Monday refill: claim_weekly_refill is server-enforced,
+          // creates the row if missing, and returns the current balance.
+          const { data: balanceData } = await supabase.rpc(
+            "claim_weekly_refill",
+          );
+          if (balanceData) {
+            setBalance(balanceData.balance);
+          } else if (balanceRow) {
+            setBalance(balanceRow.balance);
+          }
+          if (positionRows) {
+            console.log(
+              "positions from supabase:",
+              positionRows.map((p) => ({
+                id: p.id,
+                market: p.market,
+                resolved: p.resolved,
+                won: p.won,
+                payout: p.payout,
+              })),
+            );
+            setPositions(
+              positionRows.map((p) => ({
+                id: p.id,
+                marketId: p.market_id,
+                market: p.market,
+                category: p.category,
+                side: p.side,
+                shares: p.shares,
+                avgPrice: p.avg_price,
+                invested: p.invested,
+                resolved: p.resolved === true,
+                won: p.won === true,
+                payout: p.payout || 0,
+                voided: (p as any).voided === true,
+                createdAt: (p as any).created_at,
+              })),
+            );
+          }
+          const { data: adminRow } = await supabase
+            .from("admins")
+            .select("user_id")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          console.log("adminRow:", adminRow);
+          console.log("isAdmin:", !!adminRow);
+          setIsAdmin(!!adminRow);
+
+          if (adminRow) {
+            const { data: submissionRows } = await supabase
+              .from("submissions")
+              .select("*");
+
+            if (submissionRows) {
+              setSubmissions(submissionRows.map(mapSubmissionRow));
+            }
+          }
+          await loadLeaderboard(session.user.id);
+          await loadNotifications(session.user.id);
+        } else {
+          // No session — still load the leaderboard for logged-out visitors
+          await loadLeaderboard();
         }
-        await loadLeaderboard(session.user.id);
-        await loadNotifications(session.user.id);
-      } else {
-        // No session — still load the leaderboard for logged-out visitors
-        await loadLeaderboard();
-      }
-      setAuthLoading(false);
-    });
+        setAuthLoading(false);
+      })
+      .catch((err) => {
+        // Never strand the app on the loading screen. If session restore fails
+        // -- expired or invalidated token, network blip, a hand-edited
+        // auth.users row -- log it and render logged-out instead of hanging.
+        console.error("Session restore failed:", err);
+        setAuthLoading(false);
+      });
   }, []);
 
   const handleAuth = async (userData) => {
@@ -4063,7 +4075,8 @@ export default function Cajuga() {
       // Mirror the server's fee-on-top math so the logged-out demo behaves
       // like a real account.
       const demoFees =
-        Math.round(cost * 0.02 * 100) / 100 + Math.round(cost * 0.01 * 100) / 100;
+        Math.round(cost * 0.02 * 100) / 100 +
+        Math.round(cost * 0.01 * 100) / 100;
       setBalance(Math.max(0, balance - cost - demoFees));
       setMarkets((prev) =>
         prev.map((m) =>
