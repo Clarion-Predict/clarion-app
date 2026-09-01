@@ -1615,10 +1615,10 @@ const LedgerTable = ({
   showUser = true,
   emptyText = "No entries yet.",
 }) => (
-  <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
+  <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-x-auto">
     <table className="w-full text-sm font-mono">
-      <thead className="bg-stone-50 border-b border-stone-200">
-        <tr className="text-xs uppercase text-stone-500 font-sans">
+      <thead className="bg-stone-800 border-b border-stone-600">
+        <tr className="text-xs uppercase text-stone-400 font-sans">
           <th className="text-left px-3 py-2">When</th>
           {showUser && <th className="text-left px-3 py-2">User</th>}
           <th className="text-left px-3 py-2">Type</th>
@@ -1629,7 +1629,7 @@ const LedgerTable = ({
           </th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-stone-100">
+      <tbody className="divide-y divide-stone-600">
         {rows.length === 0 && (
           <tr>
             <td
@@ -1642,17 +1642,17 @@ const LedgerTable = ({
         )}
         {rows.map((e) => (
           <tr key={e.id} className="text-xs">
-            <td className="px-3 py-2 text-stone-500 whitespace-nowrap">
+            <td className="px-3 py-2 text-stone-400 whitespace-nowrap">
               {e.created_at ? new Date(e.created_at).toLocaleString() : "—"}
             </td>
             {showUser && (
-              <td className="px-3 py-2 text-stone-700">
+              <td className="px-3 py-2 text-stone-200">
                 {e.username || e.email || "—"}
               </td>
             )}
             <td className="px-3 py-2">
               <span
-                className={`px-1.5 py-0.5 rounded text-xs ${LEDGER_TYPE_STYLE[e.type] || "bg-stone-100 text-stone-700"}`}
+                className={`px-1.5 py-0.5 rounded text-xs ${LEDGER_TYPE_STYLE[e.type] || "bg-stone-800 text-stone-200"}`}
               >
                 {e.type}
               </span>
@@ -1663,12 +1663,12 @@ const LedgerTable = ({
               {Number(e.amount) >= 0 ? "+" : ""}
               {Number(e.amount).toFixed(2)}
             </td>
-            <td className="px-3 py-2 text-right text-stone-700">
+            <td className="px-3 py-2 text-right text-stone-200">
               {e.balance_after === null || e.balance_after === undefined
                 ? "—"
                 : Number(e.balance_after).toFixed(2)}
             </td>
-            <td className="px-3 py-2 text-stone-600 hidden md:table-cell">
+            <td className="px-3 py-2 text-stone-300 hidden md:table-cell">
               {e.description}
             </td>
           </tr>
@@ -1972,7 +1972,9 @@ const AdminPanel = ({
           <div className="px-2 py-0.5 rounded bg-rose-600 text-white text-xs font-medium uppercase">
             Admin
           </div>
-          <span className="text-sm font-medium">Cajuga Operator Console</span>
+          <span className="text-md font-medium font-mono uppercase text-amber-300 tracking-wide">
+            Cajuga Operator Console
+          </span>
         </div>
         <button
           onClick={onClose}
@@ -2000,14 +2002,14 @@ const AdminPanel = ({
             >
               <span className="capitalize">{t}</span>
               {t === "submissions" && pending > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-stone-900 text-xs font-medium">
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-stone-100 text-xs font-medium">
                   {pending}
                 </span>
               )}
             </button>
           ))}
         </nav>
-        <div className="flex-1 bg-stone-100 overflow-y-auto">
+        <div className="flex-1 bg-stone-800 overflow-y-auto">
           <div className="md:hidden p-2 bg-stone-900 border-b border-stone-800 flex gap-1 overflow-x-auto">
             {[
               "overview",
@@ -2031,38 +2033,38 @@ const AdminPanel = ({
           <div className="p-4 md:p-6">
             {adminTab === "overview" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-1">
+                <h1 className="text-xl font-medium text-stone-100 mb-1">
                   Platform overview
                 </h1>
-                <p className="text-xs text-stone-500 mb-5">
+                <p className="text-xs text-stone-400 mb-5">
                   Live data from Supabase
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="p-4 rounded-lg bg-white border border-stone-200">
-                    <div className="text-xs text-stone-500 uppercase mb-1">
+                  <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
+                    <div className="text-xs text-stone-400 uppercase mb-1">
                       Users
                     </div>
-                    <div className="text-2xl font-medium text-stone-900">
+                    <div className="text-2xl font-medium text-stone-100">
                       {stats?.users ?? adminUsers.length}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-white border border-stone-200">
-                    <div className="text-xs text-stone-500 uppercase mb-1">
+                  <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
+                    <div className="text-xs text-stone-400 uppercase mb-1">
                       Deposits
                     </div>
-                    <div className="text-2xl font-medium text-stone-900">
+                    <div className="text-2xl font-medium text-stone-100">
                       ${totalDeposits.toFixed(0)}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-white border border-stone-200">
-                    <div className="text-xs text-stone-500 uppercase mb-1">
+                  <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
+                    <div className="text-xs text-stone-400 uppercase mb-1">
                       Fees
                     </div>
                     <div className="text-2xl font-medium text-emerald-700">
                       ${totalFees.toFixed(2)}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-400">
                     <div className="text-xs text-amber-700 uppercase mb-1">
                       Pledged
                     </div>
@@ -2075,10 +2077,10 @@ const AdminPanel = ({
             )}
             {adminTab === "submissions" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-1">
+                <h1 className="text-xl font-medium text-stone-100 mb-1">
                   Market submissions
                 </h1>
-                <p className="text-xs text-stone-500 mb-4">
+                <p className="text-xs text-stone-400 mb-4">
                   {pending} pending review
                 </p>
                 <div className="mb-4 p-4 rounded-lg bg-stone-900 text-stone-200">
@@ -2090,7 +2092,7 @@ const AdminPanel = ({
                       <span className="text-xs font-mono">
                         market generation
                       </span>
-                      <span className="text-xs text-stone-500">
+                      <span className="text-xs text-stone-400">
                         {generating
                           ? "searching the web and drafting…"
                           : "idle"}
@@ -2122,7 +2124,7 @@ const AdminPanel = ({
                       </button>
                     </div>
                   </div>
-                  <div className="text-xs text-stone-500 mt-2">
+                  <div className="text-xs text-stone-400 mt-2">
                     Questions are drafted from current web sources, screened
                     against every live and pending market for duplicates and
                     logical inverses, and queued for review below. Takes up to a
@@ -2183,10 +2185,10 @@ const AdminPanel = ({
                       return (
                         <div
                           key={sub.id}
-                          className={`bg-white rounded-lg border p-4 transition-all ${isNew ? "border-emerald-400 ring-2 ring-emerald-200" : "border-stone-200"}`}
+                          className={`bg-stone-700 rounded-lg border p-4 transition-all ${isNew ? "border-emerald-400 ring-2 ring-emerald-200" : "border-stone-600"}`}
                         >
                           <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
-                            <span className="capitalize px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
+                            <span className="capitalize px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
                               {sub.category}
                             </span>
                             {sub.source && (
@@ -2201,21 +2203,21 @@ const AdminPanel = ({
                                 {sub.show}
                               </span>
                             )}
-                            <span className="text-stone-500">
+                            <span className="text-stone-400">
                               by {sub.submitter}
                             </span>
-                            <span className="text-stone-500">{sub.time}</span>
+                            <span className="text-stone-400">{sub.time}</span>
                             {isNew && (
                               <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
                                 NEW
                               </span>
                             )}
                           </div>
-                          <h3 className="text-base font-medium text-stone-900 mb-2">
+                          <h3 className="text-base font-medium text-stone-100 mb-2">
                             {sub.question}
                           </h3>
                           {sub.context && (
-                            <p className="text-xs text-stone-500 mb-3">
+                            <p className="text-xs text-stone-400 mb-3">
                               {sub.context}
                             </p>
                           )}
@@ -2270,7 +2272,7 @@ const AdminPanel = ({
                             <button
                               onClick={() => approveSubmission(sub.id)}
                               disabled={!ok}
-                              className={`flex-1 py-2 rounded-md text-sm font-medium ${ok ? "bg-emerald-600 text-white" : "bg-stone-100 text-stone-400 cursor-not-allowed"}`}
+                              className={`flex-1 py-2 rounded-md text-sm font-medium ${ok ? "bg-emerald-600 text-white" : "bg-stone-800 text-stone-400 cursor-not-allowed"}`}
                             >
                               {ok ? "Approve and list" : "Cannot auto-approve"}
                             </button>
@@ -2291,14 +2293,14 @@ const AdminPanel = ({
               <div>
                 <button
                   onClick={() => setSelectedUser(null)}
-                  className="flex items-center gap-2 text-stone-600 mb-4 text-sm"
+                  className="flex items-center gap-2 text-stone-300 mb-4 text-sm"
                 >
                   <ArrowLeft className="w-4 h-4" /> All users
                 </button>
 
-                <div className="bg-white rounded-lg border border-stone-200 p-5 mb-4">
+                <div className="bg-stone-700 rounded-lg border border-stone-600 p-5 mb-4">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h1 className="text-xl font-medium text-stone-900">
+                    <h1 className="text-xl font-medium text-stone-100">
                       {selectedUser.username || "—"}
                     </h1>
                     {selectedUser.is_admin && (
@@ -2312,7 +2314,7 @@ const AdminPanel = ({
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-stone-500 mb-4">
+                  <div className="text-xs text-stone-400 mb-4">
                     {selectedUser.email} · joined{" "}
                     {selectedUser.joined_at
                       ? new Date(selectedUser.joined_at).toLocaleDateString()
@@ -2338,9 +2340,9 @@ const AdminPanel = ({
                         v: `$${Number(selectedUser.net_payouts).toFixed(2)}`,
                       },
                     ].map((s) => (
-                      <div key={s.l} className="p-2 rounded bg-stone-50">
-                        <div className="text-stone-500">{s.l}</div>
-                        <div className="text-base font-medium text-stone-900">
+                      <div key={s.l} className="p-2 rounded bg-stone-800">
+                        <div className="text-stone-400">{s.l}</div>
+                        <div className="text-base font-medium text-stone-100">
                           {s.v}
                         </div>
                       </div>
@@ -2348,7 +2350,7 @@ const AdminPanel = ({
                   </div>
                 </div>
 
-                <p className="text-xs text-stone-500 mb-2">
+                <p className="text-xs text-stone-400 mb-2">
                   {userLedgerLoading
                     ? "Loading transactions…"
                     : `${userLedger.length} transaction${userLedger.length === 1 ? "" : "s"}, newest first`}
@@ -2364,7 +2366,7 @@ const AdminPanel = ({
             {adminTab === "users" && !selectedUser && (
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-xl font-medium text-stone-900">
+                  <h1 className="text-xl font-medium text-stone-100">
                     Users{" "}
                     <span className="text-sm text-stone-400">
                       ({adminUsers.length})
@@ -2382,10 +2384,10 @@ const AdminPanel = ({
                     {dataError}
                   </div>
                 )}
-                <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
+                <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr className="text-xs uppercase text-stone-500">
+                    <thead className="bg-stone-800 border-b border-stone-600">
+                      <tr className="text-xs uppercase text-stone-400">
                         <th className="text-left px-4 py-3">User</th>
                         <th className="text-left px-4 py-3">Joined</th>
                         <th className="text-right px-4 py-3">Open bets</th>
@@ -2394,7 +2396,7 @@ const AdminPanel = ({
                         <th className="px-2"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100">
+                    <tbody className="divide-y divide-stone-600">
                       {adminUsers.length === 0 && (
                         <tr>
                           <td
@@ -2409,10 +2411,10 @@ const AdminPanel = ({
                         <tr
                           key={u.user_id}
                           onClick={() => openUser(u)}
-                          className="cursor-pointer hover:bg-stone-50"
+                          className="cursor-pointer hover:bg-stone-800"
                         >
                           <td className="px-4 py-3">
-                            <div className="font-medium text-stone-900 flex items-center gap-2">
+                            <div className="font-medium text-stone-100 flex items-center gap-2">
                               {u.username || "—"}
                               {u.is_admin && (
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
@@ -2425,22 +2427,22 @@ const AdminPanel = ({
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-stone-500">
+                            <div className="text-xs text-stone-400">
                               {u.email}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-xs text-stone-500">
+                          <td className="px-4 py-3 text-xs text-stone-400">
                             {u.joined_at
                               ? new Date(u.joined_at).toLocaleDateString()
                               : "—"}
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-stone-700">
+                          <td className="px-4 py-3 text-right font-mono text-stone-200">
                             {u.open_positions}
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-stone-700">
+                          <td className="px-4 py-3 text-right font-mono text-stone-200">
                             ${Number(u.total_staked).toFixed(2)}
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-stone-900">
+                          <td className="px-4 py-3 text-right font-mono text-stone-100">
                             ${Number(u.balance).toFixed(2)}
                           </td>
                           <td className="px-2 text-stone-300">
@@ -2455,18 +2457,18 @@ const AdminPanel = ({
             )}
             {adminTab === "markets" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-4">
+                <h1 className="text-xl font-medium text-stone-100 mb-4">
                   Markets
                 </h1>
-                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-hidden">
                   {markets.map((m) => (
                     <div
                       key={m.id}
-                      className="p-4 border-b border-stone-100 last:border-0 flex items-start gap-4"
+                      className="p-4 border-b border-stone-600 last:border-0 flex items-start gap-4"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-stone-500 capitalize">
+                          <span className="text-xs text-stone-400 capitalize">
                             {m.category}
                           </span>
                           {m.status === "resolved" ? (
@@ -2479,7 +2481,7 @@ const AdminPanel = ({
                             </span>
                           )}
                         </div>
-                        <h3 className="text-sm font-medium text-stone-900">
+                        <h3 className="text-sm font-medium text-stone-100">
                           {m.question}
                         </h3>
                       </div>
@@ -2496,15 +2498,15 @@ const AdminPanel = ({
                 </div>
                 {resolvingMarket && (
                   <div className="fixed inset-0 bg-black/50 z-10 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-lg max-w-md w-full p-6">
-                      <h3 className="text-lg font-medium mb-2">
+                    <div className="bg-stone-700 rounded-lg max-w-md w-full p-6">
+                      <h3 className="text-lg font-medium text-stone-100 mb-2">
                         Resolve market
                       </h3>
-                      <p className="text-sm text-stone-600 mb-4">
+                      <p className="text-sm text-stone-300 mb-4">
                         {resolvingMarket.question}
                       </p>
                       <div className="mb-4">
-                        <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                        <label className="block text-xs font-medium text-stone-300 mb-1.5">
                           Cutoff time{" "}
                           <span className="text-stone-400 font-normal">
                             (optional — bets after this time will be voided)
@@ -2514,10 +2516,10 @@ const AdminPanel = ({
                           type="datetime-local"
                           value={cutoffTime}
                           onChange={(e) => setCutoffTime(e.target.value)}
-                          className="w-full px-3 py-2 rounded-md border border-stone-200 text-sm focus:outline-none text-stone-900"
+                          className="w-full px-3 py-2 rounded-md bg-stone-800 border border-stone-600 text-sm focus:outline-none text-stone-100 [color-scheme:dark]"
                         />
                         {cutoffTime && (
-                          <p className="text-xs text-amber-700 mt-1.5 bg-amber-50 px-3 py-1.5 rounded">
+                          <p className="text-xs text-amber-200 mt-1.5 bg-amber-900/40 px-3 py-1.5 rounded">
                             Positions placed after{" "}
                             {new Date(cutoffTime).toLocaleString()} will be
                             voided.
@@ -2547,7 +2549,7 @@ const AdminPanel = ({
                           setResolvingMarket(null);
                           setCutoffTime("");
                         }}
-                        className="w-full mt-2 py-2 text-sm text-stone-500"
+                        className="w-full mt-2 py-2 text-sm text-stone-400"
                       >
                         Cancel
                       </button>
@@ -2559,7 +2561,7 @@ const AdminPanel = ({
             {adminTab === "ledger" && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <h1 className="text-xl font-medium text-stone-900">Ledger</h1>
+                  <h1 className="text-xl font-medium text-stone-100">Ledger</h1>
                   <button
                     onClick={loadAdminData}
                     className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
@@ -2567,7 +2569,7 @@ const AdminPanel = ({
                     <RefreshCw className="w-3 h-3" /> Refresh
                   </button>
                 </div>
-                <p className="text-xs text-stone-500 mb-4">
+                <p className="text-xs text-stone-400 mb-4">
                   {adminLedger.length} most recent entries, newest first. Every
                   row shows the balance it left behind, so a trade reads stake
                   &rarr; fee &rarr; pledge.
@@ -2582,63 +2584,63 @@ const AdminPanel = ({
             )}
             {adminTab === "pledge" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-1">
+                <h1 className="text-xl font-medium text-stone-100 mb-1">
                   The Cajuga Pledge
                 </h1>
-                <p className="text-xs text-stone-500 mb-5">
+                <p className="text-xs text-stone-400 mb-5">
                   Cause allocation, four-way split
                 </p>
                 <div className="grid md:grid-cols-2 gap-3 mb-6">
-                  <div className="p-5 rounded-lg bg-white border border-stone-200">
-                    <div className="text-xs uppercase text-stone-500 mb-2">
+                  <div className="p-5 rounded-lg bg-stone-700 border border-stone-600">
+                    <div className="text-xs uppercase text-stone-400 mb-2">
                       Platform commitment
                     </div>
-                    <div className="text-3xl font-serif text-stone-900 mb-1">
+                    <div className="text-3xl font-serif text-stone-100 mb-1">
                       1%
                     </div>
-                    <div className="text-xs text-stone-600">
+                    <div className="text-xs text-stone-300">
                       of gross revenue, in perpetuity
                     </div>
                   </div>
-                  <div className="p-5 rounded-lg bg-white border border-stone-200">
-                    <div className="text-xs uppercase text-stone-500 mb-2">
+                  <div className="p-5 rounded-lg bg-stone-700 border border-stone-600">
+                    <div className="text-xs uppercase text-stone-400 mb-2">
                       Founder pledge
                     </div>
-                    <div className="text-3xl font-serif text-stone-900 mb-1">
+                    <div className="text-3xl font-serif text-stone-100 mb-1">
                       1%
                     </div>
-                    <div className="text-xs text-stone-600">
+                    <div className="text-xs text-stone-300">
                       of equity, vests on liquidity event
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-stone-200">
-                    <h3 className="text-sm font-medium text-stone-900">
+                <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-stone-600">
+                    <h3 className="text-sm font-medium text-stone-100">
                       Cause allocation
                     </h3>
                   </div>
-                  <div className="divide-y divide-stone-100">
+                  <div className="divide-y divide-stone-600">
                     {communityImpact.byArea.map((c, i) => (
                       <div
                         key={i}
                         className="px-4 py-3 flex items-center gap-3"
                       >
-                        <div className="w-10 text-xs text-stone-500">
+                        <div className="w-10 text-xs text-stone-400">
                           {c.pct}%
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm text-stone-900">
+                          <div className="text-sm text-stone-100">
                             {c.cause}
                           </div>
-                          <div className="mt-1 h-1 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="mt-1 h-1 rounded-full bg-stone-800 overflow-hidden">
                             <div
                               className="h-full bg-amber-400"
                               style={{ width: c.pct * 4 + "%" }}
                             />
                           </div>
                         </div>
-                        <div className="text-sm font-mono text-stone-700">
+                        <div className="text-sm font-mono text-stone-200">
                           ${c.amount.toLocaleString()}
                         </div>
                       </div>
@@ -2649,7 +2651,7 @@ const AdminPanel = ({
             )}
             {adminTab === "compliance" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-4">
+                <h1 className="text-xl font-medium text-stone-100 mb-4">
                   Compliance controls
                 </h1>
                 <div className="space-y-3">
@@ -2679,12 +2681,12 @@ const AdminPanel = ({
                   ].map((c, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-3 p-4 rounded-lg bg-white border border-stone-200"
+                      className="flex items-center gap-3 p-4 rounded-lg bg-stone-700 border border-stone-600"
                     >
                       <div
                         className={`w-2 h-2 rounded-full ${c.status === "ok" ? "bg-emerald-500" : "bg-amber-500"}`}
                       />
-                      <div className="flex-1 text-sm text-stone-900">
+                      <div className="flex-1 text-sm text-stone-100">
                         {c.label}
                       </div>
                       <span
@@ -2699,52 +2701,52 @@ const AdminPanel = ({
             )}
             {adminTab === "investor" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-900 mb-1">
+                <h1 className="text-xl font-medium text-stone-100 mb-1">
                   Investor materials
                 </h1>
-                <p className="text-xs text-stone-500 mb-5">
+                <p className="text-xs text-stone-400 mb-5">
                   Pitch deck outline and one-pager
                 </p>
-                <div className="p-6 rounded-lg bg-white border border-stone-200">
-                  <h3 className="text-sm font-medium text-stone-900 mb-3">
+                <div className="p-6 rounded-lg bg-stone-700 border border-stone-600">
+                  <h3 className="text-sm font-medium text-stone-100 mb-3">
                     One-pager preview
                   </h3>
-                  <div className="border border-stone-200 rounded bg-stone-50 p-6 text-sm">
+                  <div className="border border-stone-600 rounded bg-stone-800 p-6 text-sm">
                     <div className="flex items-center gap-2 mb-4">
                       <Logo size={24} />
-                      <span className="brand-font text-stone-900">Cajuga</span>
-                      <span className="ml-auto text-xs text-stone-500">
+                      <span className="brand-font text-stone-100">Cajuga</span>
+                      <span className="ml-auto text-xs text-stone-400">
                         Seed round
                       </span>
                     </div>
-                    <h4 className="text-base font-serif text-stone-900 mb-2">
+                    <h4 className="text-base font-serif text-stone-100 mb-2">
                       The prediction market for the conversations that matter.
                     </h4>
-                    <p className="text-xs text-stone-700 mb-3">
+                    <p className="text-xs text-stone-200 mb-3">
                       Curated markets across health, policy, culture, career,
                       and science.
                     </p>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <div className="text-stone-500 uppercase mb-1">
+                        <div className="text-stone-400 uppercase mb-1">
                           Opportunity
                         </div>
-                        <p className="text-stone-700">
+                        <p className="text-stone-200">
                           $3.7B raised in category in 2025. One demographic
                           served.
                         </p>
                       </div>
                       <div>
-                        <div className="text-stone-500 uppercase mb-1">
+                        <div className="text-stone-400 uppercase mb-1">
                           Moat
                         </div>
-                        <p className="text-stone-700">
+                        <p className="text-stone-200">
                           Curation plus the Cajuga Pledge plus analyst network.
                         </p>
                       </div>
                     </div>
-                    <div className="pt-3 mt-3 border-t border-stone-200 text-xs text-stone-700">
-                      <span className="text-stone-500">Raising:</span>{" "}
+                    <div className="pt-3 mt-3 border-t border-stone-600 text-xs text-stone-200">
+                      <span className="text-stone-400">Raising:</span>{" "}
                       <span className="font-medium">$4M seed</span>
                     </div>
                   </div>
