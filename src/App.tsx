@@ -1602,12 +1602,12 @@ const MyProfileTab = ({
 // ========== ADMIN PANEL ==========
 // Shared by the Ledger tab and the per-user drill-down so the two can't drift.
 const LEDGER_TYPE_STYLE = {
-  deposit: "bg-emerald-100 text-emerald-700",
-  payout: "bg-emerald-100 text-emerald-700",
-  trade: "bg-blue-100 text-blue-700",
-  pledge: "bg-amber-100 text-amber-700",
-  fee: "bg-purple-100 text-purple-700",
-  refund: "bg-sky-100 text-sky-700",
+  deposit: "bg-emerald-500/15 text-emerald-300",
+  payout: "bg-emerald-500/15 text-emerald-300",
+  trade: "bg-blue-500/15 text-blue-300",
+  pledge: "bg-amber-500/15 text-amber-300",
+  fee: "bg-purple-500/15 text-purple-300",
+  refund: "bg-sky-500/15 text-sky-300",
 };
 
 const LedgerTable = ({
@@ -2036,35 +2036,33 @@ const AdminPanel = ({
                 <h1 className="text-xl font-medium text-stone-100 mb-1">
                   Platform overview
                 </h1>
-                <p className="text-xs text-stone-400 mb-5">
-                  Live data from Supabase
-                </p>
+                <p className="text-xs text-stone-400 mb-5">Live data</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
-                    <div className="text-xs text-stone-400 uppercase mb-1">
+                    <div className="text-xs text-amber-100 uppercase mb-1">
                       Users
                     </div>
-                    <div className="text-2xl font-medium text-stone-100">
+                    <div className="text-2xl font-medium text-amber-300">
                       {stats?.users ?? adminUsers.length}
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
-                    <div className="text-xs text-stone-400 uppercase mb-1">
+                    <div className="text-xs text-amber-100 uppercase mb-1">
                       Deposits
                     </div>
-                    <div className="text-2xl font-medium text-stone-100">
+                    <div className="text-2xl font-medium text-amber-300">
                       ${totalDeposits.toFixed(0)}
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
-                    <div className="text-xs text-stone-400 uppercase mb-1">
+                    <div className="text-xs text-amber-100 uppercase mb-1">
                       Fees
                     </div>
-                    <div className="text-2xl font-medium text-emerald-700">
+                    <div className="text-2xl font-medium text-amber-300">
                       ${totalFees.toFixed(2)}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-400">
+                  <div className="p-4 rounded-lg bg-amber-300 border border-amber-400">
                     <div className="text-xs text-amber-700 uppercase mb-1">
                       Pledged
                     </div>
@@ -2178,14 +2176,14 @@ const AdminPanel = ({
                       const scol =
                         sub.source === "event-feed" ||
                         sub.source === "scheduled-event"
-                          ? "bg-blue-100 text-blue-700"
+                          ? "bg-blue-500/15 text-blue-300"
                           : sub.source === "llm-drafted"
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-amber-100 text-amber-700";
+                            ? "bg-purple-500/15 text-purple-300"
+                            : "bg-amber-500/15 text-amber-300";
                       return (
                         <div
                           key={sub.id}
-                          className={`bg-stone-700 rounded-lg border p-4 transition-all ${isNew ? "border-emerald-400 ring-2 ring-emerald-200" : "border-stone-600"}`}
+                          className={`bg-stone-700 rounded-lg border p-4 transition-all ${isNew ? "border-emerald-500 ring-2 ring-emerald-500/30" : "border-stone-600"}`}
                         >
                           <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
                             <span className="capitalize px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
@@ -2199,7 +2197,7 @@ const AdminPanel = ({
                               </span>
                             )}
                             {sub.show && (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
                                 {sub.show}
                               </span>
                             )}
@@ -2208,7 +2206,7 @@ const AdminPanel = ({
                             </span>
                             <span className="text-stone-400">{sub.time}</span>
                             {isNew && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-xs font-medium">
                                 NEW
                               </span>
                             )}
@@ -2231,7 +2229,7 @@ const AdminPanel = ({
                               href={sub.sourceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 mb-3 px-2 py-1 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800 hover:bg-blue-100 max-w-full"
+                              className="inline-flex items-center gap-1.5 mb-3 px-2 py-1 rounded bg-sky-500/15 border border-sky-500/40 text-xs text-sky-200 hover:bg-sky-500/25 max-w-full"
                             >
                               <Globe className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">
@@ -2251,7 +2249,7 @@ const AdminPanel = ({
                             ].map((ck) => (
                               <div
                                 key={ck.k}
-                                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs ${c[ck.k] ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs ${c[ck.k] ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/15 text-rose-300 border border-rose-500/30"}`}
                               >
                                 {c[ck.k] ? (
                                   <Check className="w-3 h-3" />
@@ -2263,7 +2261,7 @@ const AdminPanel = ({
                             ))}
                           </div>
                           {sub.rejectReason && (
-                            <div className="p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-3">
+                            <div className="p-3 rounded bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200 mb-3">
                               <span className="font-medium">Auto-flag:</span>{" "}
                               {sub.rejectReason}
                             </div>
@@ -2272,13 +2270,13 @@ const AdminPanel = ({
                             <button
                               onClick={() => approveSubmission(sub.id)}
                               disabled={!ok}
-                              className={`flex-1 py-2 rounded-md text-sm font-medium ${ok ? "bg-emerald-600 text-white" : "bg-stone-800 text-stone-400 cursor-not-allowed"}`}
+                              className={`flex-1 py-2 rounded-md text-sm font-medium ${ok ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-stone-800 border border-stone-600 text-stone-500 cursor-not-allowed"}`}
                             >
                               {ok ? "Approve and list" : "Cannot auto-approve"}
                             </button>
                             <button
                               onClick={() => rejectSubmission(sub.id)}
-                              className="flex-1 py-2 rounded-md bg-stone-900 text-white text-sm font-medium"
+                              className="flex-1 py-2 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-sm font-medium hover:bg-stone-900"
                             >
                               Reject
                             </button>
@@ -2304,12 +2302,12 @@ const AdminPanel = ({
                       {selectedUser.username || "—"}
                     </h1>
                     {selectedUser.is_admin && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300">
                         admin
                       </span>
                     )}
                     {Number(selectedUser.practice_credits) > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">
                         practice
                       </span>
                     )}
@@ -2380,7 +2378,7 @@ const AdminPanel = ({
                   </button>
                 </div>
                 {dataError && (
-                  <div className="mb-3 p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                  <div className="mb-3 p-3 rounded bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">
                     {dataError}
                   </div>
                 )}
@@ -2417,12 +2415,12 @@ const AdminPanel = ({
                             <div className="font-medium text-stone-100 flex items-center gap-2">
                               {u.username || "—"}
                               {u.is_admin && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300">
                                   admin
                                 </span>
                               )}
                               {Number(u.practice_credits) > 0 && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">
                                   practice
                                 </span>
                               )}
@@ -2472,11 +2470,11 @@ const AdminPanel = ({
                             {m.category}
                           </span>
                           {m.status === "resolved" ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
                               Resolved {m.outcome}
                             </span>
                           ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
                               Open
                             </span>
                           )}
@@ -2575,7 +2573,7 @@ const AdminPanel = ({
                   &rarr; fee &rarr; pledge.
                 </p>
                 {dataError && (
-                  <div className="mb-3 p-3 rounded bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                  <div className="mb-3 p-3 rounded bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">
                     {dataError}
                   </div>
                 )}
@@ -2690,7 +2688,7 @@ const AdminPanel = ({
                         {c.label}
                       </div>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${c.status === "ok" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                        className={`text-xs px-2 py-0.5 rounded-full ${c.status === "ok" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
                       >
                         {c.status === "ok" ? "OK" : "In progress"}
                       </span>
