@@ -68,6 +68,13 @@ const BadgeCheck = Award;
 // ========== FEATURE FLAGS ==========
 const SHOW_PLEDGE = false; // Set to true when real money launches
 
+// Credit purchases are paused for the friends-and-family launch. Nothing about
+// the Stripe integration is deleted -- this only hides the entry point, so
+// re-enabling is this flag plus clearing the PAYMENTS_ENABLED secret in
+// Supabase. Move both together: a visible button that 403s is worse than no
+// button at all.
+const PAYMENTS_ENABLED = false;
+
 // Captured at module load, BEFORE supabase-js consumes and strips the
 // recovery hash from the URL — tells us the user arrived via a password
 // reset email link.
@@ -4444,7 +4451,7 @@ export default function Cajuga() {
 
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
 
-      {showBuyCredits && authUser && (
+      {showBuyCredits && authUser && PAYMENTS_ENABLED && (
         <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
       )}
 
@@ -4510,7 +4517,7 @@ export default function Cajuga() {
                 <span className="font-medium text-stone-900">
                   ${balance.toFixed(2)}
                 </span>
-                {authUser && (
+                {authUser && PAYMENTS_ENABLED && (
                   <button
                     onClick={() => setShowBuyCredits(true)}
                     title="Add credits"

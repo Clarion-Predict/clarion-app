@@ -45,6 +45,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Server-side kill switch, so pausing purchases doesn't depend on the
+    // browser behaving. Flip it from the Supabase dashboard -- no deploy
+    // needed. Only an explicit "false" disables: unset means enabled, so a
+    // fresh deploy is never mysteriously broken.
+    if (Deno.env.get("PAYMENTS_ENABLED") === "false") {
+      return json({ error: "Credit purchases are currently disabled." }, 403);
+    }
+
     // Resolve the calling user from their JWT.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Not authenticated" }, 401);

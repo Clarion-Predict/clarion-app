@@ -69,3 +69,31 @@ Revoke one: `update invite_codes set active = false where code = 'CAJUGA-FF';`
 - **Charity pledge is hidden** behind `SHOW_PLEDGE = false` in `App.tsx`. Flip it if you want the 1% visible during the demo.
 - **The 8% withdrawal fee isn't built** — not needed for a fake-money demo. Note Stripe's ~2.9% is charged at *deposit*, not withdrawal, so it doesn't net against the 8%.
 - **Admin console still shows mock users and a mock ledger.** That's the next task, and it's what the demo actually shows off.
+
+---
+
+## Pausing and resuming credit purchases
+
+Nothing about the Stripe integration is deleted when purchases are paused —
+both edge functions stay deployed and the keys stay in place. Two switches
+control it, and **they must move together**: a visible Add-credits button that
+returns a 403 is worse than no button at all.
+
+| | Where | Pause | Resume |
+|---|---|---|---|
+| UI | `PAYMENTS_ENABLED` in `src/App.tsx` | `false` | `true` |
+| Server | `PAYMENTS_ENABLED` secret in Supabase → Edge Functions → Secrets | `false` | delete the secret (or set `true`) |
+
+The server switch is the useful one in an emergency: it takes effect
+immediately from the dashboard, with no deploy and no rebuild.
+
+**Leave `stripe-webhook` alone.** It costs nothing while idle, and if a
+checkout session someone opened before the pause still completes, the webhook
+is what credits their account. Disabling intake while leaving settlement
+running is safe; the reverse means charging someone and giving them nothing.
+
+**Leave the Stripe keys alone too.** They're test-mode keys, which cannot
+charge a real card. Deleting a key isn't reversible — you'd have to mint a new
+one and update the secret anyway — and it makes checkout fail with a generic
+error instead of being cleanly absent. If a *live* key ever exists, roll it in
+the Stripe dashboard rather than relying on these flags.
