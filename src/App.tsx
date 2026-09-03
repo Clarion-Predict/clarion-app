@@ -260,6 +260,15 @@ const communityImpact = {
   ],
 };
 
+// Total staked on a market, from the columns place_trade actually maintains.
+// The legacy `volume` text column is written once at approval ("$0") and never
+// updated, so anything reading it shows $0 forever.
+const marketVolume = (m) =>
+  Number(m?.yes_volume || 0) + Number(m?.no_volume || 0);
+
+const formatVolume = (n) =>
+  n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
+
 // ========== LOGO ==========
 const Logo = ({ size = 32 }) => (
   <img
@@ -4451,6 +4460,24 @@ export default function Cajuga() {
                 </span>
               </a>
             )}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs text-stone-500">
+              <span>
+                <span className="text-stone-900 font-medium">
+                  {formatVolume(marketVolume(selectedMarket))}
+                </span>{" "}
+                total volume
+              </span>
+              {marketVolume(selectedMarket) > 0 && (
+                <>
+                  <span className="text-emerald-700">
+                    {formatVolume(Number(selectedMarket.yes_volume || 0))} on Yes
+                  </span>
+                  <span className="text-rose-700">
+                    {formatVolume(Number(selectedMarket.no_volume || 0))} on No
+                  </span>
+                </>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <button
                 onClick={() => setTradeSide("yes")}
@@ -4890,7 +4917,7 @@ export default function Cajuga() {
                           </>
                         )}
                         <span className="text-stone-300">·</span>
-                        <span>{m.volume}</span>
+                        <span>{formatVolume(marketVolume(m))} volume</span>
                       </div>
                       <h3 className="text-base md:text-lg font-serif text-stone-900 leading-snug mb-3">
                         {m.question}
