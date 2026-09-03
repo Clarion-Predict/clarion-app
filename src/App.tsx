@@ -2450,10 +2450,7 @@ const AdminPanel = ({
                     {grantOk && (
                       <p className="text-xs text-emerald-300 mt-2">{grantOk}</p>
                     )}
-                    <p className="text-xs text-stone-500 mt-2">
-                      Recorded as practice credits and written to the ledger, so
-                      it can never be withdrawn as real money.
-                    </p>
+                    <p className="text-xs text-stone-500 mt-2">Max $10k</p>
                   </div>
                 </div>
 
