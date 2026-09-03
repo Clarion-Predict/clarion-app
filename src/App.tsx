@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 import BuyCreditsModal from "./BuyCreditsModal";
 import TermsModal from "./TermsModal";
+import FeedbackModal, { FEEDBACK_CATEGORIES } from "./FeedbackModal";
 import {
   Search,
   TrendingUp,
@@ -1726,6 +1727,39 @@ const AdminPanel = ({
   const [granting, setGranting] = useState(false);
   const [grantError, setGrantError] = useState("");
   const [grantOk, setGrantOk] = useState("");
+  const [feedback, setFeedback] = useState([]);
+
+  const loadFeedback = async () => {
+    const { data, error } = await supabase.rpc("admin_feedback", {
+      p_limit: 200,
+    });
+    if (error) {
+      console.error("admin_feedback:", error);
+      setDataError(error.message);
+      return;
+    }
+    setFeedback(data || []);
+  };
+
+  const setFeedbackStatus = async (id, status) => {
+    // Optimistic: the row is already on screen and this is a one-field flip.
+    setFeedback((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, status } : f)),
+    );
+    const { error } = await supabase.rpc("admin_set_feedback_status", {
+      p_id: id,
+      p_status: status,
+    });
+    if (error) {
+      console.error("admin_set_feedback_status:", error);
+      loadFeedback();
+    }
+  };
+
+  useEffect(() => {
+    if (adminTab === "feedback") loadFeedback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminTab]);
 
   // admin_grant_credits updates balance, practice_credits, and the ledger in
   // one transaction -- the three things that have to stay in step.
@@ -2059,6 +2093,7 @@ const AdminPanel = ({
             "users",
             "markets",
             "submissions",
+            "feedback",
             "ledger",
             "pledge",
             "compliance",
@@ -2085,6 +2120,7 @@ const AdminPanel = ({
               "users",
               "markets",
               "submissions",
+              "feedback",
               "ledger",
               "pledge",
               "compliance",
@@ -2671,6 +2707,119 @@ const AdminPanel = ({
                 )}
               </div>
             )}
+            {adminTab === "feedback" && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h1 className="text-xl font-medium text-stone-100">
+                    Feedback{" "}
+                    <span className="text-sm text-stone-400">
+                      ({feedback.filter((f) => f.status === "new").length} new)
+                    </span>
+                  </h1>
+                  <button
+                    onClick={loadFeedback}
+                    className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                  </button>
+                </div>
+                <p className="text-xs text-stone-400 mb-4">
+                  Newest first. Name and email are optional, so many will be
+                  blank — the account is shown when we could attribute it.
+                </p>
+                <div className="space-y-3">
+                  {feedback.length === 0 && (
+                    <div className="text-center py-10 text-stone-400 text-sm">
+                      No feedback yet.
+                    </div>
+                  )}
+                  {feedback.map((f) => {
+                    const cat = FEEDBACK_CATEGORIES.find(
+                      (c) => c.id === f.category,
+                    );
+                    const isNew = f.status === "new";
+                    return (
+                      <div
+                        key={f.id}
+                        className={`bg-stone-700 rounded-lg border p-4 ${
+                          isNew ? "border-emerald-500/40" : "border-stone-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              f.category === "bug"
+                                ? "bg-rose-500/15 text-rose-300"
+                                : f.category === "idea"
+                                  ? "bg-purple-500/15 text-purple-300"
+                                  : f.category === "market"
+                                    ? "bg-blue-500/15 text-blue-300"
+                                    : "bg-stone-500/20 text-stone-300"
+                            }`}
+                          >
+                            {cat ? cat.label : f.category}
+                          </span>
+                          {isNew && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-xs font-medium">
+                              new
+                            </span>
+                          )}
+                          <span className="text-stone-400">
+                            {f.created_at
+                              ? new Date(f.created_at).toLocaleString()
+                              : "—"}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-stone-100 whitespace-pre-wrap mb-3">
+                          {f.message}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="text-xs text-stone-400">
+                            {f.name || f.email ? (
+                              <>
+                                {f.name || "—"}
+                                {f.email && (
+                                  <>
+                                    {" · "}
+                                    <a
+                                      href={`mailto:${f.email}`}
+                                      className="underline hover:text-stone-200"
+                                    >
+                                      {f.email}
+                                    </a>
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-stone-500">
+                                No contact details left
+                              </span>
+                            )}
+                            {f.username && (
+                              <span className="text-stone-500">
+                                {" "}
+                                (account: {f.username})
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() =>
+                              setFeedbackStatus(f.id, isNew ? "reviewed" : "new")
+                            }
+                            className="px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-xs hover:bg-stone-900"
+                          >
+                            {isNew ? "Mark reviewed" : "Mark unread"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {adminTab === "ledger" && (
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -3576,6 +3725,7 @@ export default function Cajuga() {
     OPENED_FROM_RECOVERY_LINK,
   );
   const [showTerms, setShowTerms] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   // Set when the user comes back from Stripe Checkout (?checkout=success|cancelled)
   const [pendingCheckout, setPendingCheckout] = useState(() =>
@@ -4577,6 +4727,13 @@ export default function Cajuga() {
 
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
 
+      {showFeedback && (
+        <FeedbackModal
+          onClose={() => setShowFeedback(false)}
+          authUser={authUser}
+        />
+      )}
+
       {showBuyCredits && authUser && PAYMENTS_ENABLED && (
         <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
       )}
@@ -4636,6 +4793,14 @@ export default function Cajuga() {
               <span className="text-3xl brand-font text-stone-900">Cajuga</span>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFeedback(true)}
+                title="Send feedback"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Feedback</span>
+              </button>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-100 text-sm">
                 <span className="text-xs text-stone-500 hidden md:inline">
                   Practice $
