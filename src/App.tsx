@@ -1712,11 +1712,64 @@ const AdminPanel = ({
   const [selectedUser, setSelectedUser] = useState(null);
   const [userLedger, setUserLedger] = useState([]);
   const [userLedgerLoading, setUserLedgerLoading] = useState(false);
+  const [grantAmount, setGrantAmount] = useState("");
+  const [grantNote, setGrantNote] = useState("");
+  const [granting, setGranting] = useState(false);
+  const [grantError, setGrantError] = useState("");
+  const [grantOk, setGrantOk] = useState("");
+
+  // admin_grant_credits updates balance, practice_credits, and the ledger in
+  // one transaction -- the three things that have to stay in step.
+  const grantCredits = async () => {
+    const amount = Number(grantAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setGrantError("Enter an amount greater than zero.");
+      return;
+    }
+    setGranting(true);
+    setGrantError("");
+    setGrantOk("");
+    const { error } = await supabase.rpc("admin_grant_credits", {
+      p_user_id: selectedUser.user_id,
+      p_amount: amount,
+      p_note: grantNote.trim() || null,
+    });
+    if (error) {
+      setGranting(false);
+      setGrantError(error.message);
+      return;
+    }
+
+    // Re-read rather than patching local state, so the numbers on screen are
+    // the database's, not our guess at them.
+    const [{ data: users }, { data: rows }] = await Promise.all([
+      supabase.rpc("admin_user_overview"),
+      supabase.rpc("admin_ledger", {
+        p_limit: 500,
+        p_user_id: selectedUser.user_id,
+      }),
+    ]);
+    if (users) {
+      setAdminUsers(users);
+      const updated = users.find((u) => u.user_id === selectedUser.user_id);
+      if (updated) setSelectedUser(updated);
+    }
+    setUserLedger(rows || []);
+    setGranting(false);
+    setGrantAmount("");
+    setGrantNote("");
+    setGrantOk(`Granted $${amount.toFixed(2)}.`);
+    setTimeout(() => setGrantOk(""), 4000);
+  };
 
   // Same function as the Ledger tab, filtered to one account.
   const openUser = async (u) => {
     setSelectedUser(u);
     setUserLedger([]);
+    setGrantAmount("");
+    setGrantNote("");
+    setGrantError("");
+    setGrantOk("");
     setUserLedgerLoading(true);
     const { data, error } = await supabase.rpc("admin_ledger", {
       p_limit: 500,
@@ -2352,6 +2405,55 @@ const AdminPanel = ({
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-stone-600">
+                    <div className="text-xs text-stone-400 mb-2">
+                      Grant practice credits
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 px-3 py-2 rounded-md bg-stone-800 border border-stone-600 focus-within:border-stone-400">
+                        <span className="text-sm text-stone-400">$</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="1"
+                          step="1"
+                          value={grantAmount}
+                          onChange={(e) => {
+                            setGrantAmount(e.target.value);
+                            setGrantError("");
+                          }}
+                          placeholder="100"
+                          className="w-20 bg-transparent text-sm text-stone-100 focus:outline-none"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={grantNote}
+                        onChange={(e) => setGrantNote(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && grantCredits()}
+                        placeholder="Reason (optional)"
+                        className="flex-1 min-w-[10rem] px-3 py-2 rounded-md bg-stone-800 border border-stone-600 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-stone-400"
+                      />
+                      <button
+                        onClick={grantCredits}
+                        disabled={granting}
+                        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-60"
+                      >
+                        {granting ? "Granting…" : "Grant"}
+                      </button>
+                    </div>
+                    {grantError && (
+                      <p className="text-xs text-rose-300 mt-2">{grantError}</p>
+                    )}
+                    {grantOk && (
+                      <p className="text-xs text-emerald-300 mt-2">{grantOk}</p>
+                    )}
+                    <p className="text-xs text-stone-500 mt-2">
+                      Recorded as practice credits and written to the ledger, so
+                      it can never be withdrawn as real money.
+                    </p>
                   </div>
                 </div>
 
