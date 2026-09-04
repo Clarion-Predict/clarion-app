@@ -2806,7 +2806,10 @@ const AdminPanel = ({
                           </div>
                           <button
                             onClick={() =>
-                              setFeedbackStatus(f.id, isNew ? "reviewed" : "new")
+                              setFeedbackStatus(
+                                f.id,
+                                isNew ? "reviewed" : "new",
+                              )
                             }
                             className="px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-xs hover:bg-stone-900"
                           >
@@ -4620,7 +4623,8 @@ export default function Cajuga() {
               {marketVolume(selectedMarket) > 0 && (
                 <>
                   <span className="text-emerald-700">
-                    {formatVolume(Number(selectedMarket.yes_volume || 0))} on Yes
+                    {formatVolume(Number(selectedMarket.yes_volume || 0))} on
+                    Yes
                   </span>
                   <span className="text-rose-700">
                     {formatVolume(Number(selectedMarket.no_volume || 0))} on No
@@ -4691,12 +4695,12 @@ export default function Cajuga() {
         <Beaker className="w-3.5 h-3.5" />
         <span className="font-medium">Practice mode</span>
         <span className="hidden md:inline">— no real money</span>
-        <button
+        {/* <button
           onClick={() => setShowWaitlist(true)}
           className="underline font-medium ml-1"
         >
           Real-money waitlist ({waitlist.length})
-        </button>
+        </button> */}
       </div>
 
       {checkoutBanner && (
