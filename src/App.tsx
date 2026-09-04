@@ -3705,7 +3705,6 @@ export default function Cajuga() {
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace("#", "");
     const validTabs = [
-      "home",
       "markets",
       "feed",
       "following",
@@ -3715,11 +3714,11 @@ export default function Cajuga() {
       "impact",
       "about",
     ];
-    return validTabs.includes(hash) ? hash : "home";
+    return validTabs.includes(hash) ? hash : "markets";
   });
   const navigateTo = (tab: string) => {
     setActiveTab(tab);
-    window.location.hash = tab === "home" ? "" : tab;
+    window.location.hash = tab === "markets" ? "" : tab;
   };
   const [balance, setBalance] = useState(50);
   const [positions, setPositions] = useState([]);
@@ -4184,7 +4183,7 @@ export default function Cajuga() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAuthUser(null);
-    setActiveTab("home");
+    navigateTo("markets");
     setSelectedMarket(null);
     setTradeSide(null);
     setPositions([]);
@@ -4679,7 +4678,6 @@ export default function Cajuga() {
     .slice(0, 3);
 
   const tabs = [
-    "home",
     "markets",
     "feed",
     "following",
@@ -4988,7 +4986,7 @@ export default function Cajuga() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 md:py-6">
-        {activeTab === "home" && (
+        {activeTab === "markets" && (
           <div>
             <div className="mb-5 p-5 md:p-8 rounded-3xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 text-white relative overflow-hidden">
               <div className="absolute -top-10 -right-10 w-64 h-64 bg-amber-300/20 rounded-full blur-3xl" />
@@ -5011,103 +5009,6 @@ export default function Cajuga() {
                 </button>
               </div>
             </div>
-            {SHOW_PLEDGE && (
-              <div className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-200">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center flex-shrink-0">
-                    <HandHeart className="w-6 h-6 text-stone-800" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-base font-serif text-stone-900 mb-1">
-                      The Cajuga Pledge
-                    </h3>
-                    <p className="text-sm text-stone-700 mb-3 leading-relaxed">
-                      1 percent of every trade supports women's health, mental
-                      health, economic empowerment, and reproductive rights.
-                      Community total:{" "}
-                      <span className="font-medium text-stone-900">
-                        ${communityImpact.totalGiven.toLocaleString()}
-                      </span>
-                      .
-                    </p>
-                    <button
-                      onClick={() => navigateTo("impact")}
-                      className="text-xs font-medium text-stone-900 hover:underline"
-                    >
-                      See the impact →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setShowSuggestMarket(true)}
-              className="w-full flex items-center justify-between p-4 md:p-5 rounded-2xl bg-white border border-stone-100 hover:border-stone-200 mb-6"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-stone-50 flex items-center justify-center">
-                  <Plus className="w-5 h-5 text-stone-600" />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm font-medium text-stone-900">
-                    Suggest a market
-                  </div>
-                  <div className="text-xs text-stone-400">
-                    Got a question worth trading on?
-                  </div>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-stone-400" />
-            </button>
-            <h2 className="text-sm font-medium text-stone-900 uppercase mb-3">
-              All markets
-            </h2>
-            <div className="space-y-3">
-              {markets
-                .filter((m) => m.status === "open")
-                .map((m) => {
-                  const Cat = categories.find((c) => c.id === m.category);
-                  const CatIcon = Cat ? Cat.icon : null;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setSelectedMarket(m)}
-                      className="w-full text-left p-4 md:p-5 rounded-2xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 hover:from-amber-100 border border-amber-100"
-                    >
-                      <div className="flex items-center gap-2 mb-2 text-xs text-stone-600">
-                        {CatIcon && <CatIcon className="w-3 h-3" />}
-                        <span className="capitalize">{m.category}</span>
-                        {m.show && (
-                          <>
-                            <span className="text-stone-300">·</span>
-                            <span className="font-medium text-stone-700">
-                              {m.show}
-                            </span>
-                          </>
-                        )}
-                        <span className="text-stone-300">·</span>
-                        <span>{formatVolume(marketVolume(m))} volume</span>
-                      </div>
-                      <h3 className="text-base md:text-lg font-serif text-stone-900 leading-snug mb-3">
-                        {m.question}
-                      </h3>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-100/80">
-                          Yes {m.yes} cents
-                        </span>
-                        <span className="text-sm font-medium text-rose-700 px-2.5 py-0.5 rounded-full bg-rose-100/80">
-                          No {m.no} cents
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "markets" && (
-          <div>
             <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
               {categories.map((c) => {
                 const Icon = c.icon;
