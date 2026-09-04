@@ -4988,10 +4988,10 @@ export default function Cajuga() {
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-4 md:py-6">
         {activeTab === "markets" && (
           <div>
-            <div className="mb-5 p-5 md:p-8 rounded-3xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 text-white relative overflow-hidden">
+            {/* <div className="mb-5 p-5 md:p-8 rounded-3xl bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 text-white relative overflow-hidden">
               <div className="absolute -top-10 -right-10 w-64 h-64 bg-amber-300/20 rounded-full blur-3xl" />
-              <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-rose-300/15 rounded-full blur-3xl" />
-              <div className="relative">
+              <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-rose-300/15 rounded-full blur-3xl" /> */}
+            {/* <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   <Flame className="w-4 h-4 text-amber-200" />
                   <span className="text-xs uppercase text-amber-200">
@@ -5007,8 +5007,8 @@ export default function Cajuga() {
                 >
                   Make a prediction <ChevronRight className="w-4 h-4" />
                 </button>
-              </div>
-            </div>
+              </div> */}
+            {/* </div> */}
             <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
               {categories.map((c) => {
                 const Icon = c.icon;
