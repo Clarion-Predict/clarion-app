@@ -61,11 +61,10 @@ select code, label, used_count, max_uses, active from invite_codes order by crea
 
 Revoke one: `update invite_codes set active = false where code = 'CAJUGA-FF';`
 
-**5. Test the whole path** — open the site, get past the splash (`Cardinal-236`), sign up with a code, confirm you land with **$200**, place a trade, and check the ledger has three rows (trade / fee / pledge) that sum to the balance change.
+**5. Test the whole path** — open the site, sign up with a code, confirm you land with **$200**, place a trade, and check the ledger has three rows (trade / fee / pledge) that sum to the balance change.
 
 ## Known gaps
 
-- **Splash gate is still up.** Two secrets in one welcome email is clunky; drop it once invites are proven. It's a two-line change in `src/index.tsx` (documented in `SplashGate.tsx`).
 - **Charity pledge is hidden** behind `SHOW_PLEDGE = false` in `App.tsx`. Flip it if you want the 1% visible during the demo.
 - **The 8% withdrawal fee isn't built** — not needed for a fake-money demo. Note Stripe's ~2.9% is charged at *deposit*, not withdrawal, so it doesn't net against the 8%.
 - **Admin console still shows mock users and a mock ledger.** That's the next task, and it's what the demo actually shows off.
