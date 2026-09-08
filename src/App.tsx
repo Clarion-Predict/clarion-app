@@ -1716,6 +1716,10 @@ const AdminPanel = ({
   const [adminTab, setAdminTab] = useState("overview");
   const [showSuggest, setShowSuggest] = useState(false);
   const [resolvingMarket, setResolvingMarket] = useState(null);
+  const [selectedAdminMarket, setSelectedAdminMarket] = useState(null);
+  const [marketBets, setMarketBets] = useState([]);
+  const [marketBetsLoading, setMarketBetsLoading] = useState(false);
+  const [marketBetsError, setMarketBetsError] = useState("");
   const [cutoffTime, setCutoffTime] = useState("");
 
   // Real data, read through the admin_* security-definer functions. The client
@@ -1831,6 +1835,31 @@ const AdminPanel = ({
       return;
     }
     setUserLedger(data || []);
+  };
+
+  const openMarket = async (m) => {
+    setSelectedAdminMarket(m);
+    setMarketBets([]);
+    setMarketBetsError("");
+    setMarketBetsLoading(true);
+    const { data, error } = await supabase.rpc("admin_market_positions", {
+      p_market_id: m.id,
+    });
+    setMarketBetsLoading(false);
+    if (error) {
+      console.error("admin_market_positions:", error);
+      setMarketBetsError(error.message);
+      return;
+    }
+    setMarketBets(data || []);
+  };
+
+  // Usernames anywhere in the console jump to that account's detail view.
+  const goToUser = (userId) => {
+    const account = adminUsers.find((u) => u.user_id === userId);
+    if (!account) return;
+    setAdminTab("users");
+    openUser(account);
   };
 
   const loadSubmissions = async () => {
@@ -2026,6 +2055,7 @@ const AdminPanel = ({
         trending: false,
         source_url: sub.sourceUrl || null,
         source_title: sub.sourceTitle || null,
+        submitted_by: sub.userId || null,
       })
       .select()
       .single();
@@ -2053,6 +2083,8 @@ const AdminPanel = ({
           status: newMarketRow.status,
           source_url: newMarketRow.source_url,
           source_title: newMarketRow.source_title,
+          created_at: newMarketRow.created_at,
+          submitted_by: newMarketRow.submitted_by,
         },
       ]);
     }
@@ -2652,45 +2684,300 @@ const AdminPanel = ({
             )}
             {adminTab === "markets" && (
               <div>
-                <h1 className="text-xl font-medium text-stone-100 mb-4">
-                  Markets
-                </h1>
-                <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-hidden">
-                  {markets.map((m) => (
-                    <div
-                      key={m.id}
-                      className="p-4 border-b border-stone-600 last:border-0 flex items-start gap-4"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-stone-400 capitalize">
-                            {m.category}
+                {selectedAdminMarket ? (
+                  (() => {
+                    const m = selectedAdminMarket;
+                    const submitter = m.submitted_by
+                      ? adminUsers.find((u) => u.user_id === m.submitted_by)
+                      : null;
+                    const staked = marketBets
+                      .filter((b) => !b.voided)
+                      .reduce((t, b) => t + Number(b.invested || 0), 0);
+                    return (
+                      <div>
+                        <button
+                          onClick={() => setSelectedAdminMarket(null)}
+                          className="flex items-center gap-2 text-stone-400 mb-4 text-sm hover:text-stone-200"
+                        >
+                          <ArrowLeft className="w-4 h-4" /> Back to markets
+                        </button>
+
+                        <div className="bg-stone-700 rounded-lg border border-stone-600 p-5 mb-4">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap text-xs">
+                            <span className="capitalize px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
+                              {m.category}
+                            </span>
+                            {m.show && (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
+                                {m.show}
+                              </span>
+                            )}
+                            {m.status === "resolved" ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
+                                Resolved {m.outcome}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
+                                Open
+                              </span>
+                            )}
+                            {m.status === "open" && (
+                              <button
+                                onClick={() => setResolvingMarket(m)}
+                                className="ml-auto px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1"
+                              >
+                                <Edit3 className="w-3 h-3" /> Resolve
+                              </button>
+                            )}
+                          </div>
+                          <h1 className="text-lg font-medium text-stone-100 mb-2">
+                            {m.question}
+                          </h1>
+                          {m.context && (
+                            <p className="text-sm text-stone-400 mb-3">
+                              {m.context}
+                            </p>
+                          )}
+                          {m.source_url && (
+                            <a
+                              href={m.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 mb-3 px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-xs text-stone-300 hover:text-white max-w-full"
+                            >
+                              <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">
+                                {m.source_title || m.source_url}
+                              </span>
+                            </a>
+                          )}
+                          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-stone-400">
+                            <span>
+                              Submitted{" "}
+                              <span className="text-stone-200">
+                                {m.created_at
+                                  ? new Date(m.created_at).toLocaleString()
+                                  : "—"}
+                              </span>
+                            </span>
+                            <span>
+                              Resolves{" "}
+                              <span className="text-stone-200">
+                                {m.ends || "TBD"}
+                              </span>
+                            </span>
+                            <span>
+                              Submitted by{" "}
+                              {submitter ? (
+                                <button
+                                  onClick={() => goToUser(m.submitted_by)}
+                                  className="text-stone-300 underline underline-offset-2 hover:text-white"
+                                >
+                                  {submitter.username}
+                                </button>
+                              ) : (
+                                <span className="text-stone-500">unknown</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                          {[
+                            {
+                              l: "Total volume",
+                              v: formatVolume(marketVolume(m)),
+                            },
+                            {
+                              l: "On Yes",
+                              v: formatVolume(Number(m.yes_volume || 0)),
+                            },
+                            {
+                              l: "On No",
+                              v: formatVolume(Number(m.no_volume || 0)),
+                            },
+                            { l: "Bets placed", v: marketBets.length },
+                          ].map((c) => (
+                            <div
+                              key={c.l}
+                              className="bg-stone-700 rounded-lg border border-stone-600 p-3"
+                            >
+                              <div className="text-xs text-stone-400 mb-1">
+                                {c.l}
+                              </div>
+                              <div className="text-lg text-stone-100">
+                                {c.v}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <h2 className="text-sm font-medium text-stone-200">
+                            Bets on this market
+                          </h2>
+                          <span className="text-xs text-stone-400">
+                            ${staked.toFixed(2)} staked
                           </span>
-                          {m.status === "resolved" ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
-                              Resolved {m.outcome}
-                            </span>
-                          ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
-                              Open
-                            </span>
+                        </div>
+                        {marketBetsError && (
+                          <div className="mb-3 p-3 rounded bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">
+                            {marketBetsError}
+                          </div>
+                        )}
+                        <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-stone-800 border-b border-stone-600">
+                              <tr className="text-xs uppercase text-stone-400">
+                                <th className="text-left px-4 py-3">User</th>
+                                <th className="text-left px-4 py-3">Side</th>
+                                <th className="text-right px-4 py-3">Shares</th>
+                                <th className="text-right px-4 py-3">
+                                  Avg price
+                                </th>
+                                <th className="text-right px-4 py-3">
+                                  Invested
+                                </th>
+                                <th className="text-right px-4 py-3">Payout</th>
+                                <th className="text-left px-4 py-3">Placed</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {marketBetsLoading && (
+                                <tr>
+                                  <td
+                                    colSpan={7}
+                                    className="px-4 py-6 text-center text-xs text-stone-400"
+                                  >
+                                    Loading bets…
+                                  </td>
+                                </tr>
+                              )}
+                              {!marketBetsLoading &&
+                                marketBets.length === 0 && (
+                                  <tr>
+                                    <td
+                                      colSpan={7}
+                                      className="px-4 py-6 text-center text-xs text-stone-400"
+                                    >
+                                      No bets on this market yet.
+                                    </td>
+                                  </tr>
+                                )}
+                              {marketBets.map((b) => (
+                                <tr
+                                  key={b.id}
+                                  className={`border-b border-stone-600 last:border-0 ${b.voided ? "opacity-50" : ""}`}
+                                >
+                                  <td className="px-4 py-3">
+                                    <button
+                                      onClick={() => goToUser(b.user_id)}
+                                      className="text-stone-200 underline underline-offset-2 hover:text-white"
+                                    >
+                                      {b.username || b.email || "—"}
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs uppercase ${b.side === "yes" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}
+                                    >
+                                      {b.side}
+                                    </span>
+                                    {b.voided && (
+                                      <span className="ml-2 text-xs text-stone-400">
+                                        voided
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-stone-300">
+                                    {b.shares}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-stone-300">
+                                    {b.avg_price}c
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-stone-300">
+                                    ${Number(b.invested || 0).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    {b.resolved ? (
+                                      <span
+                                        className={
+                                          b.won
+                                            ? "text-emerald-300"
+                                            : "text-stone-500"
+                                        }
+                                      >
+                                        ${Number(b.payout || 0).toFixed(2)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-stone-500">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-xs text-stone-400">
+                                    {b.created_at
+                                      ? new Date(
+                                          b.created_at,
+                                        ).toLocaleString()
+                                      : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div>
+                    <h1 className="text-xl font-medium text-stone-100 mb-4">
+                      Markets
+                    </h1>
+                    <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-hidden">
+                      {markets.map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => openMarket(m)}
+                          className="p-4 border-b border-stone-600 last:border-0 flex items-start gap-4 cursor-pointer hover:bg-stone-600/40"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs text-stone-400 capitalize">
+                                {m.category}
+                              </span>
+                              {m.status === "resolved" ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
+                                  Resolved {m.outcome}
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
+                                  Open
+                                </span>
+                              )}
+                              <span className="text-xs text-stone-500">
+                                {formatVolume(marketVolume(m))} volume
+                              </span>
+                            </div>
+                            <h3 className="text-sm font-medium text-stone-100">
+                              {m.question}
+                            </h3>
+                          </div>
+                          {m.status === "open" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setResolvingMarket(m);
+                              }}
+                              className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1"
+                            >
+                              <Edit3 className="w-3 h-3" /> Resolve
+                            </button>
                           )}
                         </div>
-                        <h3 className="text-sm font-medium text-stone-100">
-                          {m.question}
-                        </h3>
-                      </div>
-                      {m.status === "open" && (
-                        <button
-                          onClick={() => setResolvingMarket(m)}
-                          className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" /> Resolve
-                        </button>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
                 {resolvingMarket && (
                   <div className="fixed inset-0 bg-black/50 z-10 flex items-center justify-center p-4">
                     <div className="bg-stone-700 rounded-lg max-w-md w-full p-6">
@@ -3880,6 +4167,8 @@ export default function Cajuga() {
               no_volume: m.no_volume || 0,
               source_url: m.source_url,
               source_title: m.source_title,
+              created_at: m.created_at,
+              submitted_by: m.submitted_by,
             })),
           );
         }
