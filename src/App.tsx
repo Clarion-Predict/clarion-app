@@ -6,61 +6,63 @@ import TermsModal from "./TermsModal";
 import StarButton from "./StarButton";
 import FeedbackModal, { FEEDBACK_CATEGORIES } from "./FeedbackModal";
 import {
-  Search,
-  TrendingUp,
-  Users,
-  MessageCircle,
-  Bookmark,
-  Share2,
-  ChevronRight,
-  ArrowLeft,
-  Sparkles,
-  Heart,
-  Briefcase,
-  Vote,
-  Tv,
-  ShoppingBag,
   Activity,
-  X,
-  Check,
-  Mail,
-  Shield,
-  CreditCard,
   AlertCircle,
-  LogOut,
-  Plus,
-  Bell,
-  TrendingDown,
-  Zap,
-  Globe,
-  Copy,
-  Award,
-  Trophy,
-  Star,
-  Flame,
-  Settings,
-  Database,
-  FileText,
-  Terminal,
-  Play,
-  RefreshCw,
-  FlaskConical,
-  BookOpen,
-  Layers,
+  Archive,
+  ArrowLeft,
   ArrowRight,
+  AtSign,
+  Award,
+  BarChart2,
+  Bell,
+  BookOpen,
+  Bookmark,
+  Briefcase,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  CreditCard,
+  Database,
   DollarSign,
   Edit3,
-  Gift,
-  UserCircle,
-  BarChart2,
   Eye,
   EyeOff,
-  AtSign,
+  FileText,
+  Flame,
+  FlaskConical,
+  Gift,
+  Globe,
+  Heart,
+  Layers,
   Lock,
-  Unlock,
-  ChevronUp,
-  ChevronDown,
+  LogOut,
+  Mail,
   Medal,
+  MessageCircle,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Share2,
+  Shield,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Terminal,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  Tv,
+  Unlock,
+  UserCircle,
+  Users,
+  Vote,
+  X,
+  Zap,
 } from "lucide-react";
 
 const Beaker = FlaskConical;
@@ -306,6 +308,12 @@ const Avatar = ({ username, size = 36, className = "" }) => {
     </div>
   );
 };
+
+const FEEDBACK_PRIORITIES = [
+  { id: "high", label: "High", chip: "bg-rose-500/15 text-rose-300" },
+  { id: "medium", label: "Medium", chip: "bg-amber-500/15 text-amber-300" },
+  { id: "low", label: "Low", chip: "bg-stone-500/20 text-stone-300" },
+];
 
 // ========== SUGGEST MARKET MODAL ==========
 const SuggestMarketModal = ({ onClose, authUser }) => {
@@ -1738,6 +1746,10 @@ const AdminPanel = ({
   const [grantError, setGrantError] = useState("");
   const [grantOk, setGrantOk] = useState("");
   const [feedback, setFeedback] = useState([]);
+  const [feedbackCategory, setFeedbackCategory] = useState("all");
+  const [feedbackPriority, setFeedbackPriority] = useState("all");
+  const [showArchived, setShowArchived] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const loadFeedback = async () => {
     const { data, error } = await supabase.rpc("admin_feedback", {
@@ -1762,6 +1774,47 @@ const AdminPanel = ({
     });
     if (error) {
       console.error("admin_set_feedback_status:", error);
+      loadFeedback();
+    }
+  };
+
+  const setFeedbackPriorityValue = async (id, priority) => {
+    setFeedback((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, priority } : f)),
+    );
+    const { error } = await supabase.rpc("admin_set_feedback_priority", {
+      p_id: id,
+      p_priority: priority,
+    });
+    if (error) {
+      console.error("admin_set_feedback_priority:", error);
+      loadFeedback();
+    }
+  };
+
+  const setFeedbackArchived = async (id, archived) => {
+    setFeedback((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, archived } : f)),
+    );
+    const { error } = await supabase.rpc("admin_set_feedback_archived", {
+      p_id: id,
+      p_archived: archived,
+    });
+    if (error) {
+      console.error("admin_set_feedback_archived:", error);
+      loadFeedback();
+    }
+  };
+
+  const deleteFeedback = async (id) => {
+    setConfirmDeleteId(null);
+    setFeedback((prev) => prev.filter((f) => f.id !== id));
+    const { error } = await supabase.rpc("admin_delete_feedback", {
+      p_id: id,
+    });
+    if (error) {
+      console.error("admin_delete_feedback:", error);
+      // The row is gone from the screen but not the table -- put it back.
       loadFeedback();
     }
   };
@@ -2116,6 +2169,13 @@ const AdminPanel = ({
   const totalFees = Number(stats?.fees_collected ?? 0);
   const totalPledge = Number(stats?.charity_pledged ?? 0);
   const pending = submissions.filter((s) => s.status === "pending").length;
+  const archivedCount = feedback.filter((f) => f.archived).length;
+  const visibleFeedback = feedback.filter(
+    (f) =>
+      Boolean(f.archived) === showArchived &&
+      (feedbackCategory === "all" || f.category === feedbackCategory) &&
+      (feedbackPriority === "all" || (f.priority || "medium") === feedbackPriority),
+  );
 
   return (
     <div className="fixed inset-0 bg-stone-950 z-50 flex flex-col overflow-hidden">
@@ -3042,40 +3102,115 @@ const AdminPanel = ({
             )}
             {adminTab === "feedback" && (
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
                   <h1 className="text-xl font-medium text-stone-100">
-                    Feedback{" "}
+                    {showArchived ? "Archived feedback" : "Feedback"}{" "}
                     <span className="text-sm text-stone-400">
-                      ({feedback.filter((f) => f.status === "new").length} new)
+                      {showArchived
+                        ? `(${archivedCount})`
+                        : `(${feedback.filter((f) => !f.archived && f.status === "new").length} new)`}
                     </span>
                   </h1>
-                  <button
-                    onClick={loadFeedback}
-                    className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Refresh
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setShowArchived(!showArchived);
+                        setConfirmDeleteId(null);
+                      }}
+                      className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 border ${
+                        showArchived
+                          ? "bg-stone-700 border-stone-500 text-white"
+                          : "bg-stone-900 border-stone-700 text-stone-300 hover:text-white"
+                      }`}
+                    >
+                      <Archive className="w-3 h-3" />
+                      {showArchived
+                        ? "Back to inbox"
+                        : `Archived (${archivedCount})`}
+                    </button>
+                    <button
+                      onClick={loadFeedback}
+                      className="px-3 py-1.5 rounded-md bg-stone-900 text-white text-xs flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Refresh
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-stone-400 mb-4">
-                  Newest first. Name and email are optional, so many will be
-                  blank — the account is shown when we could attribute it.
+                <p className="text-xs text-stone-400 mb-3">
+                  {showArchived
+                    ? "Archived items are hidden from the inbox but never deleted until you delete them."
+                    : "Newest first. Name and email are optional, so many will be blank — the account is shown when we could attribute it."}
                 </p>
+
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <select
+                    value={feedbackCategory}
+                    onChange={(e) => setFeedbackCategory(e.target.value)}
+                    className="text-xs bg-stone-800 border border-stone-600 rounded px-2 py-1.5 text-stone-200"
+                  >
+                    <option value="all">All types</option>
+                    {FEEDBACK_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={feedbackPriority}
+                    onChange={(e) => setFeedbackPriority(e.target.value)}
+                    className="text-xs bg-stone-800 border border-stone-600 rounded px-2 py-1.5 text-stone-200"
+                  >
+                    <option value="all">All priorities</option>
+                    {FEEDBACK_PRIORITIES.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  {(feedbackCategory !== "all" ||
+                    feedbackPriority !== "all") && (
+                    <button
+                      onClick={() => {
+                        setFeedbackCategory("all");
+                        setFeedbackPriority("all");
+                      }}
+                      className="text-xs text-stone-400 underline underline-offset-2 hover:text-stone-200"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                  <span className="text-xs text-stone-500 ml-auto">
+                    {visibleFeedback.length} shown
+                  </span>
+                </div>
+
                 <div className="space-y-3">
-                  {feedback.length === 0 && (
+                  {visibleFeedback.length === 0 && (
                     <div className="text-center py-10 text-stone-400 text-sm">
-                      No feedback yet.
+                      {feedback.length === 0
+                        ? "No feedback yet."
+                        : showArchived
+                          ? "Nothing archived."
+                          : "Nothing matches these filters."}
                     </div>
                   )}
-                  {feedback.map((f) => {
+                  {visibleFeedback.map((f) => {
                     const cat = FEEDBACK_CATEGORIES.find(
                       (c) => c.id === f.category,
                     );
                     const isNew = f.status === "new";
+                    const priority = f.priority || "medium";
+                    const pri = FEEDBACK_PRIORITIES.find(
+                      (x) => x.id === priority,
+                    );
+                    const confirming = confirmDeleteId === f.id;
                     return (
                       <div
                         key={f.id}
                         className={`bg-stone-700 rounded-lg border p-4 ${
-                          isNew ? "border-emerald-500/40" : "border-stone-600"
+                          isNew && !f.archived
+                            ? "border-emerald-500/40"
+                            : "border-stone-600"
                         }`}
                       >
                         <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
@@ -3092,9 +3227,19 @@ const AdminPanel = ({
                           >
                             {cat ? cat.label : f.category}
                           </span>
-                          {isNew && (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${pri ? pri.chip : ""}`}
+                          >
+                            {pri ? pri.label : priority}
+                          </span>
+                          {isNew && !f.archived && (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-xs font-medium">
                               new
+                            </span>
+                          )}
+                          {f.archived && (
+                            <span className="px-2 py-0.5 rounded-full bg-stone-500/20 text-stone-300 text-xs font-medium">
+                              archived
                             </span>
                           )}
                           <span className="text-stone-400">
@@ -3137,17 +3282,65 @@ const AdminPanel = ({
                               </span>
                             )}
                           </div>
-                          <button
-                            onClick={() =>
-                              setFeedbackStatus(
-                                f.id,
-                                isNew ? "reviewed" : "new",
-                              )
-                            }
-                            className="px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-xs hover:bg-stone-900"
-                          >
-                            {isNew ? "Mark reviewed" : "Mark unread"}
-                          </button>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <select
+                              value={priority}
+                              onChange={(e) =>
+                                setFeedbackPriorityValue(f.id, e.target.value)
+                              }
+                              className="text-xs bg-stone-800 border border-stone-600 rounded px-2 py-1.5 text-stone-200"
+                            >
+                              {FEEDBACK_PRIORITIES.map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() =>
+                                setFeedbackStatus(
+                                  f.id,
+                                  isNew ? "reviewed" : "new",
+                                )
+                              }
+                              className="px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-xs hover:bg-stone-900"
+                            >
+                              {isNew ? "Mark reviewed" : "Mark unread"}
+                            </button>
+                            <button
+                              onClick={() =>
+                                setFeedbackArchived(f.id, !f.archived)
+                              }
+                              className="px-3 py-1.5 rounded-md bg-stone-800 border border-stone-600 text-stone-200 text-xs hover:bg-stone-900 flex items-center gap-1.5"
+                            >
+                              <Archive className="w-3 h-3" />
+                              {f.archived ? "Unarchive" : "Archive"}
+                            </button>
+                            {confirming ? (
+                              <>
+                                <button
+                                  onClick={() => deleteFeedback(f.id)}
+                                  className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-medium hover:bg-rose-500"
+                                >
+                                  Delete permanently
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="px-2 py-1.5 text-xs text-stone-400 hover:text-stone-200"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteId(f.id)}
+                                className="px-3 py-1.5 rounded-md bg-rose-600/15 border border-rose-500/40 text-rose-300 text-xs hover:bg-rose-600/25 flex items-center gap-1.5"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -3155,7 +3348,6 @@ const AdminPanel = ({
                 </div>
               </div>
             )}
-
             {adminTab === "ledger" && (
               <div>
                 <div className="flex items-center justify-between mb-1">
