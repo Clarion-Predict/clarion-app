@@ -230,6 +230,10 @@ const insertSubmission = async (payload) => {
 const mapSubmissionRow = (s) => ({
   id: s.id,
   submitter: s.submitter || s.username || "Anonymous",
+  // Resolved by admin_submissions() from user_id — trustworthy, unlike the
+  // submitter/username strings the browser sent at insert time.
+  accountUsername: s.account_username || null,
+  accountEmail: s.account_email || null,
   source: s.source || "community",
   time: new Date(s.created_at).toLocaleString(),
   category: s.category,
@@ -2309,6 +2313,15 @@ const AdminPanel = ({
                             <span className="text-stone-400">
                               by {sub.submitter}
                             </span>
+                            {sub.accountUsername && (
+                              <span className="text-stone-500">
+                                (account: {sub.accountUsername}
+                                {sub.accountEmail
+                                  ? ` · ${sub.accountEmail}`
+                                  : ""}
+                                )
+                              </span>
+                            )}
                             <span className="text-stone-400">{sub.time}</span>
                             {isNew && (
                               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-xs font-medium">
@@ -3911,9 +3924,10 @@ export default function Cajuga() {
           setIsAdmin(!!adminRow);
 
           if (adminRow) {
-            const { data: submissionRows } = await supabase
-              .from("submissions")
-              .select("*");
+            const { data: submissionRows } = await supabase.rpc(
+              "admin_submissions",
+              { p_limit: 1000 },
+            );
 
             if (submissionRows) {
               setSubmissions(submissionRows.map(mapSubmissionRow));
@@ -5352,6 +5366,18 @@ export default function Cajuga() {
             </p>
             <p className="text-sm text-stone-700 leading-relaxed">
               We'd rather run fewer markets cleanly than more markets badly.
+            </p>
+            <br />
+            <h2 className="text-lg font-serif text-stone-900 mb-3">
+              Disclaimer
+            </h2>
+            <p className="text-sm text-stone-700 leading-relaxed mb-3">
+              This market and these products have not been endorsed by Bravo,
+              Peacock, CBS, ABC, Paramount+, Netflix, Hulu, MTV, Max, or any
+              other network or streaming platform. Any references to these
+              networks and platforms, or any associated marks, are descriptive
+              only and do not indicate an endorsement of this product or any
+              affiliation between these networks and platforms and Cajuga.
             </p>
             <div className="mt-8 pt-5 border-t border-stone-200">
               <button
