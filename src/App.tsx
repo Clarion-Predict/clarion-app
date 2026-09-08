@@ -234,7 +234,7 @@ const mapSubmissionRow = (s) => ({
   // Resolved by admin_submissions() from user_id — trustworthy, unlike the
   // submitter/username strings the browser sent at insert time.
   accountUsername: s.account_username || null,
-  accountEmail: s.account_email || null,
+  userId: s.user_id || null,
   source: s.source || "community",
   time: new Date(s.created_at).toLocaleString(),
   category: s.category,
@@ -308,7 +308,7 @@ const Avatar = ({ username, size = 36, className = "" }) => {
 };
 
 // ========== SUGGEST MARKET MODAL ==========
-const SuggestMarketModal = ({ onClose, authUser, onSubmitted }) => {
+const SuggestMarketModal = ({ onClose, authUser }) => {
   const [question, setQuestion] = useState("");
   const [show, setShow] = useState("");
   const [category, setCategory] = useState("");
@@ -1714,6 +1714,7 @@ const AdminPanel = ({
   setUserProfile,
 }) => {
   const [adminTab, setAdminTab] = useState("overview");
+  const [showSuggest, setShowSuggest] = useState(false);
   const [resolvingMarket, setResolvingMarket] = useState(null);
   const [cutoffTime, setCutoffTime] = useState("");
 
@@ -1830,6 +1831,17 @@ const AdminPanel = ({
       return;
     }
     setUserLedger(data || []);
+  };
+
+  const loadSubmissions = async () => {
+    const { data, error } = await supabase.rpc("admin_submissions", {
+      p_limit: 1000,
+    });
+    if (error) {
+      console.error("admin_submissions:", error);
+      return;
+    }
+    setSubmissions((data || []).map(mapSubmissionRow));
   };
 
   const loadAdminData = async () => {
@@ -2191,6 +2203,13 @@ const AdminPanel = ({
                 <p className="text-xs text-stone-400 mb-4">
                   {pending} pending review
                 </p>
+                <StarButton
+                  onClick={() => setShowSuggest(true)}
+                  className="mb-4"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Suggest a market
+                </StarButton>
+
                 <div className="mb-4 p-4 rounded-lg bg-stone-900 text-stone-200">
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-1">
@@ -2283,6 +2302,16 @@ const AdminPanel = ({
                         c.dignity &&
                         c.valuesAligned;
                       const isNew = lastGenerated === sub.id;
+                      // Generated rows keep their descriptive submitter
+                      // ("Cajuga AI drafted"); community ones show the real
+                      // account resolved by admin_submissions().
+                      const byline =
+                        sub.source === "community"
+                          ? sub.accountUsername || sub.submitter
+                          : sub.submitter;
+                      const account = sub.userId
+                        ? adminUsers.find((u) => u.user_id === sub.userId)
+                        : null;
                       const scol =
                         sub.source === "event-feed" ||
                         sub.source === "scheduled-event"
@@ -2311,16 +2340,19 @@ const AdminPanel = ({
                                 {sub.show}
                               </span>
                             )}
-                            <span className="text-stone-400">
-                              by {sub.submitter}
-                            </span>
-                            {sub.accountUsername && (
-                              <span className="text-stone-500">
-                                (account: {sub.accountUsername}
-                                {sub.accountEmail
-                                  ? ` · ${sub.accountEmail}`
-                                  : ""}
-                                )
+                            {account ? (
+                              <button
+                                onClick={() => {
+                                  setAdminTab("users");
+                                  openUser(account);
+                                }}
+                                className="text-stone-300 underline underline-offset-2 hover:text-white"
+                              >
+                                by {byline}
+                              </button>
+                            ) : (
+                              <span className="text-stone-400">
+                                by {byline}
                               </span>
                             )}
                             <span className="text-stone-400">{sub.time}</span>
@@ -3035,6 +3067,17 @@ const AdminPanel = ({
           </div>
         </div>
       </div>
+      {showSuggest && (
+        <SuggestMarketModal
+          authUser={authUser}
+          onClose={() => {
+            setShowSuggest(false);
+            // Refetch on close -- a redundant fetch after a cancel is
+            // cheaper than leaving the pending list stale.
+            loadSubmissions();
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -3925,11 +3968,12 @@ export default function Cajuga() {
           setIsAdmin(!!adminRow);
 
           if (adminRow) {
-            const { data: submissionRows } = await supabase.rpc(
-              "admin_submissions",
-              { p_limit: 1000 },
-            );
+            const { data: submissionRows, error: submissionsError } =
+              await supabase.rpc("admin_submissions", { p_limit: 1000 });
 
+            if (submissionsError) {
+              console.error("admin_submissions:", submissionsError);
+            }
             if (submissionRows) {
               setSubmissions(submissionRows.map(mapSubmissionRow));
             }
@@ -4789,7 +4833,6 @@ export default function Cajuga() {
         <SuggestMarketModal
           onClose={() => setShowSuggestMarket(false)}
           authUser={authUser}
-          onSubmitted={() => setShowSuggestMarket(false)}
         />
       )}
       {showSearch && (
