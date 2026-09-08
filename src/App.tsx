@@ -2174,7 +2174,8 @@ const AdminPanel = ({
     (f) =>
       Boolean(f.archived) === showArchived &&
       (feedbackCategory === "all" || f.category === feedbackCategory) &&
-      (feedbackPriority === "all" || (f.priority || "medium") === feedbackPriority),
+      (feedbackPriority === "all" ||
+        (f.priority || "medium") === feedbackPriority),
   );
 
   return (
@@ -2975,9 +2976,7 @@ const AdminPanel = ({
                                   </td>
                                   <td className="px-4 py-3 text-xs text-stone-400">
                                     {b.created_at
-                                      ? new Date(
-                                          b.created_at,
-                                        ).toLocaleString()
+                                      ? new Date(b.created_at).toLocaleString()
                                       : "—"}
                                   </td>
                                 </tr>
@@ -3139,7 +3138,7 @@ const AdminPanel = ({
                 <p className="text-xs text-stone-400 mb-3">
                   {showArchived
                     ? "Archived items are hidden from the inbox but never deleted until you delete them."
-                    : "Newest first. Name and email are optional, so many will be blank — the account is shown when we could attribute it."}
+                    : "Default priority = Medium."}
                 </p>
 
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
