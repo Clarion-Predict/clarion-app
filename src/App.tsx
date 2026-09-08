@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 import BuyCreditsModal from "./BuyCreditsModal";
 import TermsModal from "./TermsModal";
+import StarButton from "./StarButton";
 import FeedbackModal, { FEEDBACK_CATEGORIES } from "./FeedbackModal";
 import {
   Search,
@@ -5038,12 +5039,12 @@ export default function Cajuga() {
                 );
               })}
             </div>
-            <button
+            <StarButton
               onClick={() => setShowSuggestMarket(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 mb-5"
+              className="mb-5"
             >
               <Plus className="w-3.5 h-3.5" /> Suggest a market
-            </button>
+            </StarButton>
             <div className="space-y-3">
               {filtered.map((m) => {
                 const Cat = categories.find((c) => c.id === m.category);
