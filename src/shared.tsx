@@ -1,3 +1,4 @@
+import React from "react";
 import { supabase } from "./supabase";
 import cajugaLogo from "./cajuga-logo.svg";
 
@@ -145,7 +146,55 @@ const Logo = ({ size = 32 }) => (
 
 // ========== AVATAR ==========
 
+// Falls back to the initial when there is no picture, so every call site can
+// pass avatarUrl unconditionally.
+const Avatar = ({
+  username,
+  avatarUrl,
+  size = 36,
+  className = "",
+}: {
+  username?: string;
+  avatarUrl?: string | null;
+  size?: number;
+  className?: string;
+}) => {
+  const colors = [
+    "bg-amber-200",
+    "bg-rose-200",
+    "bg-emerald-200",
+    "bg-sky-200",
+    "bg-violet-200",
+    "bg-orange-200",
+  ];
+  const colorIdx = username ? username.charCodeAt(0) % colors.length : 0;
+
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={username ? `${username}'s profile picture` : "Profile picture"}
+        width={size}
+        height={size}
+        loading="lazy"
+        className={`rounded-full object-cover flex-shrink-0 bg-stone-100 ${className}`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${colors[colorIdx]} rounded-full flex items-center justify-center font-medium text-stone-800 flex-shrink-0 ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    >
+      {username ? username[0].toUpperCase() : "?"}
+    </div>
+  );
+};
+
 export {
+  Avatar,
   FILTER_KEYWORDS,
   autoCheckSubmission,
   insertSubmission,

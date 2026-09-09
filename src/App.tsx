@@ -6,7 +6,9 @@ import TermsModal from "./TermsModal";
 import StarButton from "./StarButton";
 import FeedbackModal from "./FeedbackModal";
 import SuggestMarketModal from "./SuggestMarketModal";
+import AvatarUpload from "./AvatarUpload";
 import {
+  Avatar,
   Logo,
   autoCheckSubmission,
   communityImpact,
@@ -164,25 +166,6 @@ const initialWaitlist = []; // real rows load from Supabase
 
 const initialSubmissions = []; // real rows load from Supabase
 
-const Avatar = ({ username, size = 36, className = "" }) => {
-  const colors = [
-    "bg-amber-200",
-    "bg-rose-200",
-    "bg-emerald-200",
-    "bg-sky-200",
-    "bg-violet-200",
-    "bg-orange-200",
-  ];
-  const colorIdx = username ? username.charCodeAt(0) % colors.length : 0;
-  return (
-    <div
-      className={`${colors[colorIdx]} rounded-full flex items-center justify-center font-medium text-stone-800 flex-shrink-0 ${className}`}
-      style={{ width: size, height: size, fontSize: size * 0.38 }}
-    >
-      {username ? username[0].toUpperCase() : "?"}
-    </div>
-  );
-};
 const SearchModal = ({
   onClose,
   communityUsers,
@@ -385,6 +368,7 @@ const UserProfileView = ({
             <div className="flex items-end justify-between -mt-8 mb-4">
               <Avatar
                 username={profileUser.username}
+                avatarUrl={profileUser.avatar_url}
                 size={56}
                 className="border-2 border-white"
               />
@@ -736,7 +720,11 @@ const ActivityFeed = ({
             <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
                 <button onClick={() => onViewProfile(item.user)}>
-                  <Avatar username={item.user.username} size={36} />
+                  <Avatar
+                    username={item.user.username}
+                    avatarUrl={item.user.avatar_url}
+                    size={36}
+                  />
                 </button>
                 <div className="flex-1 min-w-0">
                   <button
@@ -801,7 +789,11 @@ const ActivityFeed = ({
               <div className="border-t border-stone-50 px-4 py-3 space-y-3">
                 {itemComments.map((c) => (
                   <div key={c.id} className="flex gap-2">
-                    <Avatar username={c.username} size={24} />
+                    <Avatar
+                      username={c.username}
+                      avatarUrl={c.avatar_url}
+                      size={24}
+                    />
                     <div className="flex-1 bg-stone-50 rounded-xl px-3 py-2">
                       <span className="text-xs font-medium text-stone-700">
                         @{c.username}{" "}
@@ -815,7 +807,11 @@ const ActivityFeed = ({
 
             {/* Comment input */}
             <div className="border-t border-stone-50 px-4 py-3 flex gap-2">
-              <Avatar username={authUser?.username} size={28} />
+              <Avatar
+                username={authUser?.username}
+                avatarUrl={authUser?.avatar_url}
+                size={28}
+              />
               <div className="flex-1 relative">
                 <input
                   type="text"
@@ -896,7 +892,7 @@ const FollowingTab = ({
               className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100"
             >
               <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} size={40} />
+                <Avatar username={u.username} avatarUrl={u.avatar_url} size={40} />
               </button>
               <div className="flex-1 min-w-0">
                 <button
@@ -933,7 +929,7 @@ const FollowingTab = ({
               className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100"
             >
               <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} size={40} />
+                <Avatar username={u.username} avatarUrl={u.avatar_url} size={40} />
               </button>
               <div className="flex-1 min-w-0">
                 <button
@@ -1019,7 +1015,7 @@ const LeaderboardTab = ({
                 onClick={() => onViewProfile(u)}
                 className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
               >
-                <Avatar username={u.username} size={36} />
+                <Avatar username={u.username} avatarUrl={u.avatar_url} size={36} />
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-stone-900 truncate">
                     @{u.username}
@@ -1083,6 +1079,9 @@ const MyProfileTab = ({
   const totalPledged = positions.reduce((s, p) => s + p.invested * 0.01, 0);
   const username = demoUser.username || demoUser.email?.split("@")[0] || "you";
 
+  const onAvatarChanged = (url) =>
+    setUserProfile((prev) => ({ ...prev, avatarUrl: url }));
+
   const saveBio = async () => {
     setUserProfile((prev) => ({ ...prev, bio }));
     setEditingBio(false);
@@ -1102,6 +1101,7 @@ const MyProfileTab = ({
           <div className="flex items-end justify-between -mt-8 mb-4">
             <Avatar
               username={username}
+              avatarUrl={userProfile?.avatarUrl}
               size={56}
               className="border-2 border-white"
             />
@@ -1158,6 +1158,16 @@ const MyProfileTab = ({
               >
                 <Edit3 className="w-3 h-3" /> Edit
               </button>
+            </div>
+          )}
+          {demoUser?.id && (
+            <div className="mb-4 pb-4 border-b border-stone-100">
+              <AvatarUpload
+                userId={demoUser.id}
+                username={username}
+                avatarUrl={userProfile?.avatarUrl}
+                onUploaded={onAvatarChanged}
+              />
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -1976,7 +1986,8 @@ export default function Cajuga() {
     cause: string;
     accuracy: number;
     totalResolved: number;
-  }>({ bio: "", cause: "", accuracy: 0, totalResolved: 0 });
+    avatarUrl: string | null;
+  }>({ bio: "", cause: "", accuracy: 0, totalResolved: 0, avatarUrl: null });
 
   const [markets, setMarkets] = useState(initialMarkets);
   const [waitlist, setWaitlist] = useState(initialWaitlist);
@@ -2141,12 +2152,14 @@ export default function Cajuga() {
             id: session.user.id,
             email: session.user.email,
             username: profile?.username || session.user.email.split("@")[0],
+            avatar_url: profile?.avatar_url || null,
             returning: true,
           });
           if (profile) {
             setUserProfile({
               bio: profile.bio || "",
               cause: profile.cause || "",
+              avatarUrl: profile.avatar_url || null,
               accuracy: profile.accuracy || 0,
               totalResolved: profile.total_resolved || 0,
             });
@@ -2295,12 +2308,14 @@ export default function Cajuga() {
           id: data.user.id,
           email: userData.email,
           username: profile?.username || userData.email.split("@")[0],
+          avatar_url: profile?.avatar_url || null,
           returning: true,
         });
         if (profile) {
           setUserProfile({
             bio: profile.bio || "",
             cause: profile.cause || "",
+            avatarUrl: profile.avatar_url || null,
             accuracy: profile.accuracy || 0,
             totalResolved: profile.total_resolved || 0,
           });
@@ -2362,7 +2377,7 @@ export default function Cajuga() {
     const { data: profileRows } = await supabase
       .from("profiles")
       .select(
-        "user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, leaderboard_rank",
+        "user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, leaderboard_rank, avatar_url",
       )
       .order("leaderboard_rank", { ascending: true });
     if (profileRows && profileRows.length > 0) {
@@ -3214,7 +3229,11 @@ export default function Cajuga() {
                   onClick={() => setShowDevMenu(!showDevMenu)}
                   className="flex items-center gap-2"
                 >
-                  <Avatar username={user.username || user.email} size={32} />
+                  <Avatar
+                    username={user.username || user.email}
+                    avatarUrl={user.avatar_url}
+                    size={32}
+                  />
                 </button>
                 {showDevMenu && (
                   <div>
