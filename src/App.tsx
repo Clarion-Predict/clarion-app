@@ -1724,11 +1724,14 @@ const AdminPanel = ({
   const [adminTab, setAdminTab] = useState("overview");
   const [showSuggest, setShowSuggest] = useState(false);
   const [resolvingMarket, setResolvingMarket] = useState(null);
+  const [cutoffTime, setCutoffTime] = useState("");
+  const [showCutoff, setShowCutoff] = useState(false);
   const [selectedAdminMarket, setSelectedAdminMarket] = useState(null);
+  const [showResolved, setShowResolved] = useState(false);
+  const [resolvedMarkets, setResolvedMarkets] = useState([]);
   const [marketBets, setMarketBets] = useState([]);
   const [marketBetsLoading, setMarketBetsLoading] = useState(false);
   const [marketBetsError, setMarketBetsError] = useState("");
-  const [cutoffTime, setCutoffTime] = useState("");
 
   // Real data, read through the admin_* security-definer functions. The client
   // can't query balances or ledger directly -- RLS restricts those to the
@@ -1821,6 +1824,7 @@ const AdminPanel = ({
 
   useEffect(() => {
     if (adminTab === "feedback") loadFeedback();
+    if (adminTab === "markets") loadResolvedMarkets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminTab]);
 
@@ -1888,6 +1892,19 @@ const AdminPanel = ({
       return;
     }
     setUserLedger(data || []);
+  };
+
+  const loadResolvedMarkets = async () => {
+    const { data, error } = await supabase
+      .from("markets")
+      .select("*")
+      .eq("status", "resolved")
+      .order("resolved_at", { ascending: false, nullsFirst: false });
+    if (error) {
+      console.error("resolved markets:", error);
+      return;
+    }
+    setResolvedMarkets(data || []);
   };
 
   const openMarket = async (m) => {
@@ -1999,16 +2016,15 @@ const AdminPanel = ({
   };
 
   const resolveMarket = async (marketId, outcome) => {
-    const cutoffDate = cutoffTime ? new Date(cutoffTime) : null;
-
     // All payout/void/stats logic runs server-side in the resolve_market
     // function (admin-gated) — one atomic call instead of client-side loops.
+    // resolve_market stamps resolved_at itself; a null cutoff voids nothing.
     const { data: summary, error: resolveError } = await supabase.rpc(
       "resolve_market",
       {
         p_market_id: marketId,
         p_outcome: outcome,
-        p_cutoff: cutoffDate ? cutoffDate.toISOString() : null,
+        p_cutoff: cutoffTime ? new Date(cutoffTime).toISOString() : null,
       },
     );
     if (resolveError) {
@@ -2020,7 +2036,14 @@ const AdminPanel = ({
 
     setMarkets((prev) =>
       prev.map((m) =>
-        m.id === marketId ? { ...m, status: "resolved", outcome } : m,
+        m.id === marketId
+          ? {
+              ...m,
+              status: "resolved",
+              outcome,
+              resolved_at: new Date().toISOString(),
+            }
+          : m,
       ),
     );
 
@@ -2082,9 +2105,12 @@ const AdminPanel = ({
 
     // resolve_market wrote the real payout/refund rows; pull them in.
     await loadAdminData();
+    await loadResolvedMarkets();
 
     setResolvingMarket(null);
+    setSelectedAdminMarket(null);
     setCutoffTime("");
+    setShowCutoff(false);
   };
 
   const approveSubmission = async (subId) => {
@@ -2169,6 +2195,9 @@ const AdminPanel = ({
   const totalFees = Number(stats?.fees_collected ?? 0);
   const totalPledge = Number(stats?.charity_pledged ?? 0);
   const pending = submissions.filter((s) => s.status === "pending").length;
+  const marketList = showResolved
+    ? resolvedMarkets
+    : markets.filter((m) => m.status === "open");
   const archivedCount = feedback.filter((f) => f.archived).length;
   const visibleFeedback = feedback.filter(
     (f) =>
@@ -2774,8 +2803,12 @@ const AdminPanel = ({
                               </span>
                             )}
                             {m.status === "resolved" ? (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
-                                Resolved {m.outcome}
+                              <span
+                                className={`px-2 py-0.5 rounded-full ${m.outcome === "void" ? "bg-stone-500/20 text-stone-300" : "bg-emerald-500/15 text-emerald-300"}`}
+                              >
+                                {m.outcome === "void"
+                                  ? "Voided — no result"
+                                  : `Resolved ${m.outcome}`}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
@@ -2827,6 +2860,16 @@ const AdminPanel = ({
                                 {m.ends || "TBD"}
                               </span>
                             </span>
+                            {m.status === "resolved" && (
+                              <span>
+                                Resolved{" "}
+                                <span className="text-stone-200">
+                                  {m.resolved_at
+                                    ? new Date(m.resolved_at).toLocaleString()
+                                    : "—"}
+                                </span>
+                              </span>
+                            )}
                             <span>
                               Submitted by{" "}
                               {submitter ? (
@@ -2989,11 +3032,36 @@ const AdminPanel = ({
                   })()
                 ) : (
                   <div>
-                    <h1 className="text-xl font-medium text-stone-100 mb-4">
-                      Markets
-                    </h1>
+                    <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                      <h1 className="text-xl font-medium text-stone-100">
+                        {showResolved ? "Resolved markets" : "Markets"}{" "}
+                        <span className="text-sm text-stone-400">
+                          ({marketList.length})
+                        </span>
+                      </h1>
+                      <button
+                        onClick={() => setShowResolved(!showResolved)}
+                        className={`px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5 border ${
+                          showResolved
+                            ? "bg-stone-700 border-stone-500 text-white"
+                            : "bg-stone-900 border-stone-700 text-stone-300 hover:text-white"
+                        }`}
+                      >
+                        <Archive className="w-3 h-3" />
+                        {showResolved
+                          ? "Back to open markets"
+                          : `Resolved (${resolvedMarkets.length})`}
+                      </button>
+                    </div>
                     <div className="bg-stone-700 rounded-lg border border-stone-600 overflow-hidden">
-                      {markets.map((m) => (
+                      {marketList.length === 0 && (
+                        <div className="p-6 text-center text-sm text-stone-400">
+                          {showResolved
+                            ? "No resolved markets yet."
+                            : "No open markets."}
+                        </div>
+                      )}
+                      {marketList.map((m) => (
                         <div
                           key={m.id}
                           onClick={() => openMarket(m)}
@@ -3005,8 +3073,12 @@ const AdminPanel = ({
                                 {m.category}
                               </span>
                               {m.status === "resolved" ? (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
-                                  Resolved {m.outcome}
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-full ${m.outcome === "void" ? "bg-stone-500/20 text-stone-300" : "bg-emerald-500/15 text-emerald-300"}`}
+                                >
+                                  {m.outcome === "void"
+                                    ? "Voided — no result"
+                                    : `Resolved ${m.outcome}`}
                                 </span>
                               ) : (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
@@ -3046,25 +3118,68 @@ const AdminPanel = ({
                       <p className="text-sm text-stone-300 mb-4">
                         {resolvingMarket.question}
                       </p>
+                      <p className="text-xs text-stone-400 mb-3">
+                        Resolving now — the current time is recorded as the
+                        resolution time.{" "}
+                        {cutoffTime
+                          ? "Positions placed after the cutoff below will be voided and refunded."
+                          : "Every open position on this market pays out immediately."}
+                      </p>
+
                       <div className="mb-4">
-                        <label className="block text-xs font-medium text-stone-300 mb-1.5">
-                          Cutoff time{" "}
-                          <span className="text-stone-400 font-normal">
-                            (optional — bets after this time will be voided)
-                          </span>
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={cutoffTime}
-                          onChange={(e) => setCutoffTime(e.target.value)}
-                          className="w-full px-3 py-2 rounded-md bg-stone-800 border border-stone-600 text-sm focus:outline-none text-stone-100 [color-scheme:dark]"
-                        />
-                        {cutoffTime && (
-                          <p className="text-xs text-amber-200 mt-1.5 bg-amber-900/40 px-3 py-1.5 rounded">
-                            Positions placed after{" "}
-                            {new Date(cutoffTime).toLocaleString()} will be
-                            voided.
-                          </p>
+                        <button
+                          onClick={() => {
+                            setShowCutoff(!showCutoff);
+                            if (showCutoff) setCutoffTime("");
+                          }}
+                          className="text-xs text-stone-400 underline underline-offset-2 hover:text-stone-200"
+                        >
+                          {showCutoff
+                            ? "Hide advanced options"
+                            : "Advanced options"}
+                        </button>
+                        {showCutoff && (
+                          <div className="mt-3 p-3 rounded-md bg-stone-800/60 border border-stone-600">
+                            <label className="block text-xs font-medium text-stone-300 mb-1.5">
+                              Void bets placed after a time
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={cutoffTime}
+                              onChange={(e) => setCutoffTime(e.target.value)}
+                              className="w-full px-3 py-2 rounded-md bg-stone-800 border border-stone-600 text-sm focus:outline-none text-stone-100 [color-scheme:dark]"
+                            />
+                            <p className="text-xs text-stone-400 mt-1.5">
+                              Use this when someone bet after the outcome was
+                              already public. Leave empty to pay everyone out.
+                            </p>
+                            {cutoffTime && (
+                              <p className="text-xs text-amber-200 mt-1.5 bg-amber-900/40 px-3 py-1.5 rounded">
+                                Positions placed after{" "}
+                                {new Date(cutoffTime).toLocaleString()} will be
+                                voided and their stake refunded.
+                              </p>
+                            )}
+
+                            <div className="mt-4 pt-3 border-t border-stone-600">
+                              <label className="block text-xs font-medium text-stone-300 mb-1">
+                                No conclusive outcome
+                              </label>
+                              <p className="text-xs text-stone-400 mb-2">
+                                Voids the market instead of picking a side.
+                                Every wager is refunded in full and nobody's
+                                accuracy is affected.
+                              </p>
+                              <button
+                                onClick={() =>
+                                  resolveMarket(resolvingMarket.id, "void")
+                                }
+                                className="w-full py-2.5 rounded-md bg-stone-900 border border-stone-500 text-stone-100 text-sm font-medium hover:bg-stone-950"
+                              >
+                                Resolve as unresolved — refund everyone
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                       <div className="flex gap-2">
@@ -3089,6 +3204,7 @@ const AdminPanel = ({
                         onClick={() => {
                           setResolvingMarket(null);
                           setCutoffTime("");
+                          setShowCutoff(false);
                         }}
                         className="w-full mt-2 py-2 text-sm text-stone-400"
                       >
@@ -4360,6 +4476,7 @@ export default function Cajuga() {
               source_title: m.source_title,
               created_at: m.created_at,
               submitted_by: m.submitted_by,
+              resolved_at: m.resolved_at,
             })),
           );
         }
