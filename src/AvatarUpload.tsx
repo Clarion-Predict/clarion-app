@@ -1,10 +1,11 @@
 import React, { useRef, useState } from "react";
-import { Camera } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { supabase } from "./supabase";
 import { Avatar } from "./shared";
 
 // Phone photos are several megabytes; an avatar renders at well under 100px.
-// Shrinking in the browser keeps uploads fast and storage small.
+// Shrinking in the browser keeps uploads fast and storage small, and
+// re-encoding through canvas drops EXIF -- including GPS coordinates.
 const MAX_DIMENSION = 256;
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 const MAX_INPUT_BYTES = 10 * 1024 * 1024;
@@ -50,15 +51,19 @@ const resize = (file: File): Promise<Blob> =>
     img.src = url;
   });
 
+// Renders the profile picture with an edit badge on the corner, so there is
+// only ever one avatar on screen.
 const AvatarUpload = ({
   userId,
   username,
   avatarUrl,
+  size = 56,
   onUploaded,
 }: {
   userId: string;
   username?: string;
   avatarUrl?: string | null;
+  size?: number;
   onUploaded: (url: string | null) => void;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,61 +126,42 @@ const AvatarUpload = ({
     }
   };
 
-  const clear = async () => {
-    setBusy(true);
-    setError("");
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ avatar_url: null })
-      .eq("user_id", userId);
-    if (profileError) {
-      console.error("avatar clear:", profileError);
-      setError("Could not remove that. Please try again.");
-      setBusy(false);
-      return;
-    }
-    const previous = avatarUrl?.split("/avatars/")[1];
-    if (previous) await supabase.storage.from("avatars").remove([previous]);
-    onUploaded(null);
-    setBusy(false);
-  };
+  const badge = Math.max(22, Math.round(size * 0.4));
 
   return (
-    <div className="flex items-center gap-4">
-      <Avatar username={username} avatarUrl={avatarUrl} size={72} />
-      <div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-            className="px-3 py-2 rounded-full bg-stone-900 text-white text-xs font-medium disabled:opacity-60 flex items-center gap-1.5"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            {busy ? "Uploading…" : avatarUrl ? "Change photo" : "Add photo"}
-          </button>
-          {avatarUrl && !busy && (
-            <button
-              type="button"
-              onClick={clear}
-              className="px-3 py-2 rounded-full border border-stone-200 text-stone-600 text-xs hover:bg-stone-50"
-            >
-              Remove
-            </button>
+    <div>
+      <div className="relative inline-block">
+        <Avatar
+          username={username}
+          avatarUrl={avatarUrl}
+          size={size}
+          className="border-2 border-white"
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          aria-label={
+            avatarUrl ? "Change profile picture" : "Add profile picture"
+          }
+          style={{ width: badge, height: badge }}
+          className="absolute -bottom-0.5 -right-0.5 rounded-full bg-stone-900 text-white flex items-center justify-center border-2 border-white hover:bg-stone-700 disabled:opacity-60"
+        >
+          {busy ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Pencil className="w-3 h-3" />
           )}
-        </div>
-        <p className="text-xs text-stone-400 mt-1.5">
-          JPG, PNG or WebP. Cropped to a square.
-        </p>
-        {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED.join(",")}
+          onChange={(e) => pick(e.target.files?.[0])}
+          className="hidden"
+        />
       </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={ACCEPTED.join(",")}
-        onChange={(e) => pick(e.target.files?.[0])}
-        className="hidden"
-      />
+      {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
     </div>
   );
 };

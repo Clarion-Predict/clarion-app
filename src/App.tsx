@@ -791,7 +791,10 @@ const ActivityFeed = ({
                   <div key={c.id} className="flex gap-2">
                     <Avatar
                       username={c.username}
-                      avatarUrl={c.avatar_url}
+                      avatarUrl={
+                        communityUsers.find((u) => u.id === c.user_id)
+                          ?.avatar_url
+                      }
                       size={24}
                     />
                     <div className="flex-1 bg-stone-50 rounded-xl px-3 py-2">
@@ -1099,12 +1102,22 @@ const MyProfileTab = ({
         <div className="h-16 bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100" />
         <div className="px-5 pb-5">
           <div className="flex items-end justify-between -mt-8 mb-4">
-            <Avatar
-              username={username}
-              avatarUrl={userProfile?.avatarUrl}
-              size={56}
-              className="border-2 border-white"
-            />
+            {demoUser?.id ? (
+              <AvatarUpload
+                userId={demoUser.id}
+                username={username}
+                avatarUrl={userProfile?.avatarUrl}
+                size={56}
+                onUploaded={onAvatarChanged}
+              />
+            ) : (
+              <Avatar
+                username={username}
+                avatarUrl={userProfile?.avatarUrl}
+                size={56}
+                className="border-2 border-white"
+              />
+            )}
             <span className="text-xs text-stone-400 flex items-center gap-1">
               <Beaker className="w-3 h-3" /> Practice account
             </span>
@@ -1158,16 +1171,6 @@ const MyProfileTab = ({
               >
                 <Edit3 className="w-3 h-3" /> Edit
               </button>
-            </div>
-          )}
-          {demoUser?.id && (
-            <div className="mb-4 pb-4 border-b border-stone-100">
-              <AvatarUpload
-                userId={demoUser.id}
-                username={username}
-                avatarUrl={userProfile?.avatarUrl}
-                onUploaded={onAvatarChanged}
-              />
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -2460,6 +2463,7 @@ export default function Cajuga() {
             followsMe: followerIds.has(p.user_id),
             cause: p.cause || "",
             causePrivate: false,
+            avatar_url: p.avatar_url || null,
             positions: followedPositionsMap[p.user_id] || [],
           })),
       );
