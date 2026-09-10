@@ -512,7 +512,7 @@ const UserProfileView = ({
   );
 };
 
-// ========== ACTIVITY FEED TAB ==========
+// ========== GOSSIP TAB ==========
 const EMOJIS = ["🔥", "💯", "👀", "😮", "💀"];
 
 const ActivityFeed = ({
@@ -712,6 +712,9 @@ const ActivityFeed = ({
         const causeInfo = !item.user.causePrivate
           ? causeOptions.find((c) => c.id === item.user.cause)
           : null;
+        // Only open markets are loaded, so a bet on a resolved one has
+        // nothing to open — it stays plain text rather than a dead link.
+        const itemMarket = markets.find((m) => m.id === item.marketId);
         return (
           <div
             key={item.key}
@@ -741,9 +744,18 @@ const ActivityFeed = ({
                   {item.side?.toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm font-serif text-stone-900 leading-snug mb-3">
-                {item.market}
-              </p>
+              {itemMarket ? (
+                <button
+                  onClick={() => onViewMarket(itemMarket)}
+                  className="block text-left text-sm font-serif text-stone-900 leading-snug mb-3 hover:underline underline-offset-2 decoration-stone-300"
+                >
+                  {item.market}
+                </button>
+              ) : (
+                <p className="text-sm font-serif text-stone-900 leading-snug mb-3">
+                  {item.market}
+                </p>
+              )}
               <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap mb-3">
                 <span>${item.amount?.toFixed(2)} wagered</span>
                 {item.resolved && (
@@ -1271,7 +1283,7 @@ const MyProfileTab = ({
               ? [
                   {
                     label: "Hide cause donation",
-                    sub: "Your chosen cause will not appear on your profile or activity feed",
+                    sub: "Your chosen cause will not appear on your profile or in Gossip",
                     state: causePrivate,
                     toggle: () => setCausePrivate(!causePrivate),
                   },
@@ -2006,7 +2018,7 @@ export default function Cajuga() {
     const hash = window.location.hash.replace("#", "");
     const validTabs = [
       "markets",
-      "feed",
+      "gossip",
       "following",
       "leaderboard",
       "positions",
@@ -2556,7 +2568,7 @@ export default function Cajuga() {
         follower_id: authUser.id,
         following_id: userId,
       });
-      // Load their positions for the feed
+      // Load their positions for the gossip tab
       const { data: posRows } = await supabase
         .from("positions")
         .select(
@@ -2989,7 +3001,7 @@ export default function Cajuga() {
 
   const tabs = [
     "markets",
-    "feed",
+    "gossip",
     "following",
     "leaderboard",
     "positions",
@@ -3202,7 +3214,7 @@ export default function Cajuga() {
                                 className="flex-1 min-w-0 text-left"
                                 onClick={() => {
                                   setShowNotifications(false);
-                                  navigateTo("feed");
+                                  navigateTo("gossip");
                                 }}
                               >
                                 <p className="text-xs text-stone-700 leading-snug">
@@ -3296,7 +3308,7 @@ export default function Cajuga() {
                 onClick={() => navigateTo(t)}
                 className={`px-3 md:px-4 py-2 rounded-full whitespace-nowrap capitalize flex items-center gap-1.5 ${activeTab === t ? "bg-stone-900 text-white" : "text-stone-600"}`}
               >
-                {t === "feed" && <Users className="w-3 h-3" />}
+                {t === "gossip" && <Users className="w-3 h-3" />}
                 {t === "leaderboard" && <Trophy className="w-3 h-3" />}
                 {t === "profile" && <UserCircle className="w-3 h-3" />}
                 {t}
@@ -3391,12 +3403,12 @@ export default function Cajuga() {
           </div>
         )}
 
-        {activeTab === "feed" && (
+        {activeTab === "gossip" && (
           <div>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h1 className="text-xl md:text-2xl font-serif text-stone-900">
-                  Activity feed
+                  Gossip
                 </h1>
                 <p className="text-sm text-stone-500">
                   People you follow · 280 char comments
