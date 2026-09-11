@@ -11,6 +11,71 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ---------------------------------------------------------------------------
+// Password rules
+// ---------------------------------------------------------------------------
+// This is the only real enforcement at signup: auth.admin.createUser does NOT
+// apply the project's password settings (it differs from auth.updateUser,
+// which does). A browser-side check alone would gate nothing.
+//
+// Mirrors src/passwordRules.ts -- change both together.
+const MIN_PASSWORD_LENGTH = 10;
+
+const COMMON_PASSWORDS = new Set([
+  "password", "password1", "password123", "passw0rd", "123456", "1234567",
+  "12345678", "123456789", "1234567890", "qwerty", "qwerty123", "qwertyuiop",
+  "letmein", "welcome", "welcome1", "admin", "admin123", "iloveyou",
+  "sunshine", "princess", "football", "baseball", "dragon", "monkey",
+  "shadow", "master", "superman", "trustno1", "abc123", "abcd1234",
+  "changeme", "secret", "starwars", "whatever", "zaq12wsx", "asdfghjkl",
+  "cajuga", "cajuga123", "prediction", "reality",
+]);
+
+const SEQUENCES = [
+  "abcdefghijklmnopqrstuvwxyz",
+  "qwertyuiop",
+  "asdfghjkl",
+  "zxcvbnm",
+  "01234567890",
+];
+
+const hasRunOrSequence = (lower: string): boolean => {
+  if (/(.)\1{4,}/.test(lower)) return true;
+  for (const row of SEQUENCES) {
+    const reversed = row.split("").reverse().join("");
+    for (let i = 0; i + 6 <= row.length; i++) {
+      if (lower.includes(row.slice(i, i + 6))) return true;
+      if (lower.includes(reversed.slice(i, i + 6))) return true;
+    }
+  }
+  return false;
+};
+
+const checkPassword = (
+  password: string,
+  identifiers: (string | undefined | null)[] = [],
+): string | null => {
+  if (!password) return "Choose a password.";
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  const lower = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lower)) {
+    return "That password is too common. Please choose another.";
+  }
+  if (hasRunOrSequence(lower)) {
+    return "Avoid repeated characters or keyboard patterns like 123456.";
+  }
+  for (const raw of identifiers) {
+    if (!raw) continue;
+    const id = String(raw).toLowerCase().split("@")[0];
+    if (id.length >= 3 && lower.includes(id)) {
+      return "Password must not contain your name or email.";
+    }
+  }
+  return null;
+};
+
+// ---------------------------------------------------------------------------
 // Username rules
 // ---------------------------------------------------------------------------
 // Shape is the important half. Restricting to [a-z0-9_] is what stops a
@@ -109,9 +174,8 @@ Deno.serve(async (req) => {
     const code = String(body.code ?? "").trim().toUpperCase();
 
     if (!email.includes("@")) return json({ error: "Enter a valid email." }, 400);
-    if (password.length < 8) {
-      return json({ error: "Password must be at least 8 characters." }, 400);
-    }
+    const passwordError = checkPassword(password, [body.username, email]);
+    if (passwordError) return json({ error: passwordError }, 400);
     const usernameError = checkUsername(username);
     if (usernameError) return json({ error: usernameError }, 400);
     if (!code) return json({ error: "An invite code is required." }, 400);

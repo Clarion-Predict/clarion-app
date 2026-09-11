@@ -8,6 +8,11 @@ import FeedbackModal from "./FeedbackModal";
 import SuggestMarketModal from "./SuggestMarketModal";
 import AvatarUpload from "./AvatarUpload";
 import {
+  MIN_PASSWORD_LENGTH,
+  checkPassword,
+  passwordStrength,
+} from "./passwordRules";
+import {
   Avatar,
   Logo,
   autoCheckSubmission,
@@ -34,6 +39,7 @@ import {
   BookOpen,
   Bookmark,
   Briefcase,
+  ChartNoAxesCombined,
   Check,
   ChevronDown,
   ChevronRight,
@@ -519,7 +525,7 @@ const UserProfileView = ({
 };
 
 // ========== GOSSIP TAB ==========
-const EMOJIS = ["🔥", "💯", "👀", "😮", "💀"];
+const EMOJIS = ["💛", "🌼", "⭐️", "🌝", "🧀"];
 
 const ActivityFeed = ({
   communityUsers,
@@ -1567,11 +1573,15 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
       setError("Please enter a valid email.");
       return;
     }
-    // Keep this in step with signup-with-invite, which rejects under 8 --
-    // validating at 6 here just moved the failure to the server.
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
+    // Only enforced on signup: existing members may hold a password that
+    // predates this rule, and locking them out of sign-in would be worse than
+    // the weak password.
+    if (view === "signup") {
+      const pwError = checkPassword(password, [username, email]);
+      if (pwError) {
+        setError(pwError);
+        return;
+      }
     }
     if (view === "signup") {
       const handle = username.trim().toLowerCase();
@@ -1712,6 +1722,31 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
             placeholder="••••••••"
             className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
           />
+          {view === "signup" && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex gap-1 flex-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-1 flex-1 rounded-full ${
+                      passwordStrength(password).score > i
+                        ? "bg-emerald-500"
+                        : "bg-stone-200"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-stone-400 w-16 text-right">
+                {password ? passwordStrength(password).label : ""}
+              </span>
+            </div>
+          )}
+          {view === "signup" && !password && (
+            <p className="text-xs text-stone-400 mt-1">
+              At least {MIN_PASSWORD_LENGTH} characters. A few words together
+              beats a short complicated one.
+            </p>
+          )}
         </div>
 
         {view === "login" && (
@@ -1787,8 +1822,9 @@ const SetPasswordModal = ({ onClose, email, allowEmailFallback }) => {
   const [linkSent, setLinkSent] = useState(false);
 
   const save = async () => {
-    if (pw.length < 8) {
-      setError("Use at least 8 characters.");
+    const pwError = checkPassword(pw, [email]);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     if (pw !== confirm) {
