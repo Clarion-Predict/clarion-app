@@ -55,7 +55,6 @@ import {
   Lock,
   LogOut,
   Mail,
-  Medal,
   MessageCircle,
   Play,
   Plus,
@@ -995,9 +994,9 @@ const LeaderboardTab = ({
   });
 
   const rankIcon = (rank) => {
-    if (rank === 1) return <Trophy className="w-4 h-4 text-amber-500" />;
-    if (rank === 2) return <Medal className="w-4 h-4 text-stone-400" />;
-    if (rank === 3) return <Medal className="w-4 h-4 text-amber-700" />;
+    if (rank === 1) return <Trophy className="w-4 h-4 text-amber-400" />;
+    if (rank === 2) return <Trophy className="w-4 h-4 text-stone-400" />;
+    if (rank === 3) return <Trophy className="w-4 h-4 text-amber-700" />;
     return (
       <span className="text-xs font-mono text-stone-400 w-4 text-center">
         #{rank}
@@ -1025,14 +1024,15 @@ const LeaderboardTab = ({
 
       <div className="space-y-2">
         {sorted.map((u, i) => {
-          const isTop3 = u.leaderboardRank <= 3;
+          const displayRank = i + 1;
+          const isTop3 = displayRank <= 3;
           return (
             <div
               key={u.id}
               className={`flex items-center gap-3 p-3 md:p-4 rounded-2xl ${isTop3 ? "bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100" : "bg-white border border-stone-100"}`}
             >
               <div className="w-6 flex items-center justify-center flex-shrink-0">
-                {rankIcon(u.leaderboardRank)}
+                {rankIcon(displayRank)}
               </div>
               <button
                 onClick={() => onViewProfile(u)}
@@ -2403,9 +2403,8 @@ export default function Cajuga() {
     const { data: profileRows } = await supabase
       .from("profiles")
       .select(
-        "user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, leaderboard_rank, avatar_url",
-      )
-      .order("leaderboard_rank", { ascending: true });
+        "user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, avatar_url",
+      );
     if (profileRows && profileRows.length > 0) {
       const { data: tradeCounts } = await supabase
         .from("positions")
@@ -2471,9 +2470,32 @@ export default function Cajuga() {
           });
         }
       }
+      // Rank is derived here rather than stored. The old profiles.leaderboard_rank
+      // column was only refreshed when a market resolved, had no tie-break, and
+      // defaulted to 0 — which sorted brand new accounts straight to the top.
+      const ranked = profileRows
+        .filter((p) => p.username)
+        .sort((a, b) => {
+          // Anyone with a settled bet outranks anyone without one, so a new
+          // account can't lead on a 0% record it never actually earned.
+          const aSettled = (a.total_resolved || 0) > 0;
+          const bSettled = (b.total_resolved || 0) > 0;
+          if (aSettled !== bSettled) return aSettled ? -1 : 1;
+          // Then accuracy, then volume of settled bets, so 100% from ten
+          // resolved markets beats 100% from one.
+          if ((b.accuracy || 0) !== (a.accuracy || 0))
+            return (b.accuracy || 0) - (a.accuracy || 0);
+          if ((b.total_resolved || 0) !== (a.total_resolved || 0))
+            return (b.total_resolved || 0) - (a.total_resolved || 0);
+          if ((b.wins || 0) !== (a.wins || 0))
+            return (b.wins || 0) - (a.wins || 0);
+          // Alphabetical last, so equal records keep a stable order between
+          // loads rather than shuffling.
+          return (a.username || "").localeCompare(b.username || "");
+        });
+
       setCommunityUsers(
-        profileRows
-          .filter((p) => p.username)
+        ranked
           .map((p, i) => ({
             id: p.user_id,
             username: p.username,
@@ -2481,7 +2503,7 @@ export default function Cajuga() {
             accuracy: p.accuracy || 0,
             totalTrades: countMap[p.user_id] || 0,
             impactScore: p.impact_score || 0,
-            leaderboardRank: p.leaderboard_rank || i + 1,
+            leaderboardRank: i + 1,
             following: followingIds.has(p.user_id),
             followsMe: followerIds.has(p.user_id),
             cause: p.cause || "",
