@@ -56,7 +56,9 @@ import {
   FlaskConical,
   Gift,
   Globe,
+  FlagTriangleRight,
   Heart,
+  Info,
   Layers,
   Lock,
   LogOut,
@@ -3444,6 +3446,9 @@ export default function Cajuga() {
                 {t === "gossip" && <Users className="w-3 h-3" />}
                 {t === "leaderboard" && <Trophy className="w-3 h-3" />}
                 {t === "profile" && <UserCircle className="w-3 h-3" />}
+                {t === "markets" && <ChartNoAxesCombined className="w-3 h-3" />}
+                {t === "positions" && <FlagTriangleRight className="w-3 h-3" />}
+                {t === "about" && <Info className="w-3 h-3" />}
                 {t}
               </button>
             ))}
