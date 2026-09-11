@@ -2956,8 +2956,24 @@ export default function Cajuga() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-stone-500">If right</span>
-                  <span className="text-emerald-600 font-medium">
-                    +${shares - tradeAmount}
+                  <span className="font-medium">
+                    {/* Payout first, because that is the number that lands in
+                        the balance. The gain is net of the fee so it reconciles
+                        with the Total cost line below -- payout minus stake
+                        alone would be 30c adrift of it. */}
+                    <span className="text-stone-900">
+                      ${shares.toFixed(2)}
+                    </span>{" "}
+                    <span
+                      className={
+                        shares - totalCost >= 0
+                          ? "text-emerald-600"
+                          : "text-rose-600"
+                      }
+                    >
+                      ({shares - totalCost >= 0 ? "+" : "−"}$
+                      {Math.abs(shares - totalCost).toFixed(2)})
+                    </span>
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-stone-200">
