@@ -1117,6 +1117,10 @@ const MyProfileTab = ({
   userProfile,
   setUserProfile,
   onLogout,
+  communityUsers,
+  onFollowToggle,
+  onViewProfile,
+  authUser,
 }) => {
   const [selectedCause, setSelectedCause] = useState(userProfile?.cause || "");
   const [causePrivate, setCausePrivate] = useState(false);
@@ -1245,6 +1249,16 @@ const MyProfileTab = ({
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-100 p-5 mb-4">
+        <h3 className="text-sm font-medium text-stone-900 mb-4">Your people</h3>
+        <FollowingTab
+          communityUsers={communityUsers}
+          onFollowToggle={onFollowToggle}
+          onViewProfile={onViewProfile}
+          authUser={authUser}
+        />
       </div>
 
       {SHOW_PLEDGE && (
@@ -2126,7 +2140,6 @@ export default function Cajuga() {
     const validTabs = [
       "markets",
       "gossip",
-      "following",
       "leaderboard",
       "positions",
       "profile",
@@ -3113,7 +3126,6 @@ export default function Cajuga() {
   const tabs = [
     "markets",
     "gossip",
-    "following",
     "leaderboard",
     "positions",
     "profile",
@@ -3570,20 +3582,6 @@ export default function Cajuga() {
           </div>
         )}
 
-        {activeTab === "following" && (
-          <div>
-            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-5">
-              Following
-            </h1>
-            <FollowingTab
-              communityUsers={communityUsers}
-              onFollowToggle={handleFollowToggle}
-              onViewProfile={setViewingProfile}
-              authUser={authUser}
-            />
-          </div>
-        )}
-
         {activeTab === "leaderboard" && (
           <div>
             <div className="mb-5">
@@ -3677,6 +3675,10 @@ export default function Cajuga() {
               userProfile={userProfile}
               setUserProfile={setUserProfile}
               onLogout={handleLogout}
+              communityUsers={communityUsers}
+              onFollowToggle={handleFollowToggle}
+              onViewProfile={setViewingProfile}
+              authUser={authUser}
             />
           </div>
         )}
