@@ -1567,13 +1567,25 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
       setError("Please enter a valid email.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    // Keep this in step with signup-with-invite, which rejects under 8 --
+    // validating at 6 here just moved the failure to the server.
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
-    if (view === "signup" && !username.trim()) {
-      setError("Please choose a username.");
-      return;
+    if (view === "signup") {
+      const handle = username.trim().toLowerCase();
+      if (!handle) {
+        setError("Please choose a username.");
+        return;
+      }
+      // Same rule the database and the signup function enforce.
+      if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
+        setError(
+          "Usernames can use lowercase letters, numbers and underscores, and must be 3-20 characters.",
+        );
+        return;
+      }
     }
     if (view === "signup" && !inviteCode.trim()) {
       setError("An invite code is required while Cajuga is in private beta.");

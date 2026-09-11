@@ -10,6 +10,72 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// ---------------------------------------------------------------------------
+// Username rules
+// ---------------------------------------------------------------------------
+// Shape is the important half. Restricting to [a-z0-9_] is what stops a
+// lookalike name: a Cyrillic "a" is a different character from a Latin one and
+// would otherwise pass a uniqueness check while rendering identically to
+// another member's name. It also rules out zero-width and direction-override
+// characters. The database enforces the same rule; this is here so the person
+// signing up gets a sentence instead of a constraint violation.
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+
+// Names that imply this account speaks for Cajuga. More important than
+// profanity for us -- "cajuga_support" asking a member about their balance is
+// a workable phishing setup.
+const RESERVED = new Set([
+  "admin", "administrator", "root", "support", "help", "helpdesk", "mod",
+  "moderator", "staff", "team", "official", "cajuga", "cajugaapp",
+  "cajugateam", "cajugasupport", "cajugahelp", "cajuga_official", "security",
+  "billing", "payments", "noreply", "no_reply", "system", "moderation",
+]);
+
+// Deliberately short. It is a speed bump, not a solution: any blocklist is
+// bypassable and over-blocks real words (the "Scunthorpe problem"). Swap in a
+// moderation API before public signup.
+const BLOCKED = [
+  "fuck", "shit", "cunt", "bitch", "nigger", "faggot", "retard", "rape",
+  "nazi", "hitler",
+];
+
+// Innocent words that contain a blocked one. Stripped out before matching, so
+// "scunthorpe" and "grapevine" survive -- the classic false positive that has
+// locked real people out of real services.
+const SAFE_WORDS = [
+  "scunthorpe", "penistone", "cockburn", "lightwater", "clitheroe",
+  "grape", "scrape", "drape", "therap", "assassin", "classic", "analy",
+];
+
+// Fold the common letter/digit swaps before matching, so "sh1t" and "f4ggot"
+// are caught by the same short list.
+const deLeet = (s: string) =>
+  s
+    .replace(/[4@]/g, "a")
+    .replace(/3/g, "e")
+    .replace(/[1!|]/g, "i")
+    .replace(/0/g, "o")
+    .replace(/[5$]/g, "s")
+    .replace(/7/g, "t")
+    .replace(/[^a-z]/g, "");
+
+// Returns an error message, or null when the name is acceptable.
+const checkUsername = (username: string): string | null => {
+  if (!username) return "Pick a username.";
+  if (!USERNAME_RE.test(username)) {
+    return "Usernames can use lowercase letters, numbers and underscores, and must be 3-20 characters.";
+  }
+  if (RESERVED.has(username) || RESERVED.has(deLeet(username))) {
+    return "That username is reserved. Please choose another.";
+  }
+  let folded = deLeet(username);
+  for (const safe of SAFE_WORDS) folded = folded.split(safe).join("");
+  if (BLOCKED.some((word) => folded.includes(word))) {
+    return "Please choose a different username.";
+  }
+  return null;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -46,8 +112,21 @@ Deno.serve(async (req) => {
     if (password.length < 8) {
       return json({ error: "Password must be at least 8 characters." }, 400);
     }
-    if (!username) return json({ error: "Pick a username." }, 400);
+    const usernameError = checkUsername(username);
+    if (usernameError) return json({ error: usernameError }, 400);
     if (!code) return json({ error: "An invite code is required." }, 400);
+
+    // Check availability before burning an invite use. The unique index is
+    // still the authority -- two simultaneous signups can both pass this read
+    // -- so the insert failure is handled further down as well.
+    const { data: taken } = await admin
+      .from("profiles")
+      .select("user_id")
+      .ilike("username", username)
+      .maybeSingle();
+    if (taken) {
+      return json({ error: "That username is taken. Try another." }, 400);
+    }
 
     // Read, then claim with a guarded update. The `.eq("used_count", ...)`
     // is the lock: if someone else claimed the last use in between, our update
@@ -101,17 +180,37 @@ Deno.serve(async (req) => {
 
     // Profile + granted balance. The grant is recorded as practice_credits so
     // it can never be withdrawn as real money later.
-    await admin.from("profiles").insert({
+    //
+    // These errors used to be discarded. With a unique index on the username,
+    // two people signing up at once can now genuinely collide here -- and a
+    // silent failure would leave an auth account with no profile or no
+    // balance, which the app cannot recover from. Undo the account instead so
+    // the address is free to try again.
+    const { error: profileError } = await admin.from("profiles").insert({
       user_id: userId,
       username,
       bio: "",
       cause: "",
     });
-    await admin.from("balances").insert({
+    if (profileError) {
+      await admin.auth.admin.deleteUser(userId);
+      throw new Error(
+        profileError.code === "23505"
+          ? "That username was just taken. Try another."
+          : "Could not create the account.",
+      );
+    }
+
+    const { error: balanceError } = await admin.from("balances").insert({
       user_id: userId,
       balance: grantAmount,
       practice_credits: grantAmount,
     });
+    if (balanceError) {
+      await admin.from("profiles").delete().eq("user_id", userId);
+      await admin.auth.admin.deleteUser(userId);
+      throw new Error("Could not create the account.");
+    }
     await admin.from("ledger").insert({
       user_id: userId,
       type: "deposit",
