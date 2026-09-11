@@ -243,7 +243,8 @@ const SearchModal = ({
                   @{u.username}
                 </div>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% accuracy
+                  {u.totalTrades} trades · {u.accuracy}% of{" "}
+                  {u.totalResolved} settled
                 </div>
               </div>
               <button
@@ -395,6 +396,7 @@ const UserProfileView = ({
                   highlight: profileUser.accuracy >= 65,
                 },
                 { label: "Total trades", value: profileUser.totalTrades },
+                { label: "Settled", value: profileUser.totalResolved },
               ].map((s, i) => (
                 <div
                   key={i}
@@ -484,7 +486,10 @@ const UserProfileView = ({
                   label: "Leaderboard rank",
                   value: "#" + profileUser.leaderboardRank,
                 },
-                { label: "Accuracy rate", value: profileUser.accuracy + "%" },
+                {
+                  label: "Accuracy rate",
+                  value: `${profileUser.accuracy}% of ${profileUser.totalResolved} settled`,
+                },
                 {
                   label: "Total trades placed",
                   value: profileUser.totalTrades,
@@ -920,7 +925,8 @@ const FollowingTab = ({
                   @{u.username}
                 </button>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% accuracy
+                  {u.totalTrades} trades · {u.accuracy}% of{" "}
+                  {u.totalResolved} settled
                 </div>
               </div>
               <button
@@ -961,7 +967,8 @@ const FollowingTab = ({
                   @{u.username}
                 </button>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% accuracy
+                  {u.totalTrades} trades · {u.accuracy}% of{" "}
+                  {u.totalResolved} settled
                 </div>
               </div>
               <button
@@ -1048,7 +1055,7 @@ const LeaderboardTab = ({
                     @{u.username}
                   </div>
                   <div className="text-xs text-stone-400">
-                    {u.totalTrades} trades
+                    {u.totalTrades} trades · {u.totalResolved} settled
                   </div>
                 </div>
               </button>
@@ -2502,6 +2509,9 @@ export default function Cajuga() {
             name: p.username,
             accuracy: p.accuracy || 0,
             totalTrades: countMap[p.user_id] || 0,
+            // Accuracy and rank are both based on settled bets, not on every
+            // bet placed, so the two counts have to be shown separately.
+            totalResolved: p.total_resolved || 0,
             impactScore: p.impact_score || 0,
             leaderboardRank: i + 1,
             following: followingIds.has(p.user_id),
