@@ -609,8 +609,11 @@ const AdminPanel = ({
   };
 
   const totalDeposits = Number(stats?.deposits ?? 0);
-  const totalFees = Number(stats?.fees_collected ?? 0);
-  const totalPledge = Number(stats?.charity_pledged ?? 0);
+  // Trades now write a single 3% fee row, but historical rows split it into
+  // 2% fee + 1% pledge, so both still have to be summed for the total to be
+  // right across all time.
+  const totalFees =
+    Number(stats?.fees_collected ?? 0) + Number(stats?.charity_pledged ?? 0);
   const pending = submissions.filter((s) => s.status === "pending").length;
   const marketList = showResolved
     ? resolvedMarkets
@@ -678,7 +681,7 @@ const AdminPanel = ({
                   Platform overview
                 </h1>
                 <p className="text-xs text-stone-400 mb-5">Live data</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
                     <div className="text-xs text-amber-100 uppercase mb-1">
                       Users
@@ -695,20 +698,12 @@ const AdminPanel = ({
                       ${totalDeposits.toFixed(0)}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-stone-700 border border-stone-600">
-                    <div className="text-xs text-amber-100 uppercase mb-1">
-                      Fees
-                    </div>
-                    <div className="text-2xl font-medium text-amber-300">
-                      ${totalFees.toFixed(2)}
-                    </div>
-                  </div>
                   <div className="p-4 rounded-lg bg-amber-300 border border-amber-400">
                     <div className="text-xs text-amber-700 uppercase mb-1">
-                      Pledged
+                      Fees (3%)
                     </div>
                     <div className="text-2xl font-medium text-amber-900">
-                      ${totalPledge.toFixed(2)}
+                      ${totalFees.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -1876,7 +1871,9 @@ const AdminPanel = ({
                 <p className="text-xs text-stone-400 mb-4">
                   {adminLedger.length} most recent entries, newest first. Every
                   row shows the balance it left behind, so a trade reads stake
-                  &rarr; fee &rarr; pledge.
+                  &rarr; fee. Trades before September 2026 carry a third
+                  &ldquo;pledge&rdquo; row, from when the 1% came out of each
+                  trade.
                 </p>
                 {dataError && (
                   <div className="mb-3 p-3 rounded bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">

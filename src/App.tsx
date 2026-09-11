@@ -907,7 +907,11 @@ const FollowingTab = ({
               className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100"
             >
               <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} avatarUrl={u.avatar_url} size={40} />
+                <Avatar
+                  username={u.username}
+                  avatarUrl={u.avatar_url}
+                  size={40}
+                />
               </button>
               <div className="flex-1 min-w-0">
                 <button
@@ -944,7 +948,11 @@ const FollowingTab = ({
               className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-stone-100"
             >
               <button onClick={() => onViewProfile(u)}>
-                <Avatar username={u.username} avatarUrl={u.avatar_url} size={40} />
+                <Avatar
+                  username={u.username}
+                  avatarUrl={u.avatar_url}
+                  size={40}
+                />
               </button>
               <div className="flex-1 min-w-0">
                 <button
@@ -1030,7 +1038,11 @@ const LeaderboardTab = ({
                 onClick={() => onViewProfile(u)}
                 className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
               >
-                <Avatar username={u.username} avatarUrl={u.avatar_url} size={36} />
+                <Avatar
+                  username={u.username}
+                  avatarUrl={u.avatar_url}
+                  size={36}
+                />
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-stone-900 truncate">
                     @{u.username}
@@ -1068,7 +1080,7 @@ const LeaderboardTab = ({
       <div className="mt-6 p-4 rounded-2xl bg-stone-50 border border-stone-100 text-center">
         <p className="text-xs text-stone-500 leading-relaxed">
           Rankings update daily. Accuracy is calculated on resolved markets
-          only. Impact score reflects total pledge contributions.
+          only.
         </p>
       </div>
     </div>
@@ -1091,7 +1103,6 @@ const MyProfileTab = ({
   const [editingBio, setEditingBio] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [bio, setBio] = useState(userProfile?.bio || "");
-  const totalPledged = positions.reduce((s, p) => s + p.invested * 0.01, 0);
   const username = demoUser.username || demoUser.email?.split("@")[0] || "you";
 
   const onAvatarChanged = (url) =>
@@ -2721,13 +2732,11 @@ export default function Cajuga() {
     const price = tradeSide === "yes" ? selectedMarket.yes : selectedMarket.no;
     const shares = Math.floor(tradeAmount / (price / 100));
     const cost = tradeAmount;
-    // Fees are charged on top of the stake and must round the same way
-    // place_trade does, or "balance after" won't match what actually happens.
-    const platformFee = Math.round(cost * 0.02 * 100) / 100;
-    const pledgeAmount = Math.round(cost * 0.01 * 100) / 100;
-    const totalCost = cost + platformFee + pledgeAmount;
+    // Charged on top of the stake, and must round the same way place_trade
+    // does or "total cost" won't match what actually leaves the balance.
+    const fee = Math.round(cost * 0.03 * 100) / 100;
+    const totalCost = cost + fee;
     const insufficient = totalCost > balance;
-    const cause = causesByCategory[selectedMarket.category];
     return (
       <div className="min-h-screen bg-amber-50/40 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
@@ -2745,12 +2754,6 @@ export default function Cajuga() {
               <p className="text-stone-600 text-sm mb-3">
                 {shares} shares of {tradeSide.toUpperCase()} at {price} cents
               </p>
-              {SHOW_PLEDGE && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  <HandHeart className="w-3 h-3" />
-                  <span>1 percent pledged to {cause.name}</span>
-                </div>
-              )}
             </div>
           ) : (
             <div>
@@ -2834,7 +2837,7 @@ export default function Cajuga() {
                 <div className="flex justify-between">
                   <span className="text-stone-500">Fees (3%)</span>
                   <span className="text-stone-900 font-medium">
-                    ${(platformFee + pledgeAmount).toFixed(2)}
+                    ${fee.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -2852,17 +2855,6 @@ export default function Cajuga() {
                   </span>
                 </div>
               </div>
-              {SHOW_PLEDGE && (
-                <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 border border-amber-100 mb-5">
-                  <HandHeart className="w-4 h-4 text-amber-700" />
-                  <div className="flex-1 text-xs text-amber-900 leading-snug">
-                    <span className="font-medium">
-                      1 percent of this trade (${pledgeAmount.toFixed(2)})
-                    </span>{" "}
-                    supports {cause.name}
-                  </div>
-                </div>
-              )}
               <p className="text-xs text-stone-400 text-center mb-3">
                 Bets placed after an outcome is known may be voided at
                 resolution.

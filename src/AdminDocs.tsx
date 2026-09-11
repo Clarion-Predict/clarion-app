@@ -192,14 +192,6 @@ const AdminDocs = () => (
         against what Cajuga earns over a year — not a slice taken out of any
         individual bet.
       </p>
-      <Callout>
-        <strong className="text-stone-100">Tidy-up for the team:</strong> the
-        fee is charged as two rows behind the scenes (2% + 1%), left over from
-        when the pledge came out of each trade. Members pay the same 3% either
-        way, but one ledger row is still labelled "pledge to charity", which no
-        longer describes what it is. Worth relabelling before anyone reads a
-        ledger closely.
-      </Callout>
     </Section>
 
     <Section title="Where markets come from">
@@ -249,11 +241,16 @@ const AdminDocs = () => (
         changes a balance quietly.
       </p>
       <p>
-        One $10 bet produces three lines — the $10 stake, and the 3% fee split
-        across two rows — and each line records the balance immediately after
-        it. Add the lines up and you get the balance. That is what makes it
-        possible to answer "why is my balance this number?" for any member, at
-        any point in time.
+        One $10 bet produces two lines — the $10 stake and the 30¢ fee — and
+        each line records the balance immediately after it. Add the lines up and
+        you get the balance. That is what makes it possible to answer "why is my
+        balance this number?" for any member, at any point in time.
+      </p>
+      <p>
+        Trades placed before September 2026 show three lines instead of two: the
+        stake, a 2% fee and a 1% charity pledge, from when the pledge came out
+        of every trade. Members paid the same 3% then as now — only the
+        labelling changed.
       </p>
     </Section>
 
