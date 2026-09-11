@@ -243,8 +243,8 @@ const SearchModal = ({
                   @{u.username}
                 </div>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% of{" "}
-                  {u.totalResolved} settled
+                  {u.totalTrades} trades · {u.accuracy}% of {u.totalResolved}{" "}
+                  settled
                 </div>
               </div>
               <button
@@ -925,8 +925,8 @@ const FollowingTab = ({
                   @{u.username}
                 </button>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% of{" "}
-                  {u.totalResolved} settled
+                  {u.totalTrades} trades · {u.accuracy}% of {u.totalResolved}{" "}
+                  settled
                 </div>
               </div>
               <button
@@ -967,8 +967,8 @@ const FollowingTab = ({
                   @{u.username}
                 </button>
                 <div className="text-xs text-stone-400">
-                  {u.totalTrades} trades · {u.accuracy}% of{" "}
-                  {u.totalResolved} settled
+                  {u.totalTrades} trades · {u.accuracy}% of {u.totalResolved}{" "}
+                  settled
                 </div>
               </div>
               <button
@@ -1013,7 +1013,7 @@ const LeaderboardTab = ({
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+      {/* <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
         {[
           ["rank", "Overall rank"],
           ["accuracy", "Accuracy"],
@@ -1027,7 +1027,7 @@ const LeaderboardTab = ({
             {label}
           </button>
         ))}
-      </div>
+      </div> */}
 
       <div className="space-y-2">
         {sorted.map((u, i) => {
@@ -2502,25 +2502,24 @@ export default function Cajuga() {
         });
 
       setCommunityUsers(
-        ranked
-          .map((p, i) => ({
-            id: p.user_id,
-            username: p.username,
-            name: p.username,
-            accuracy: p.accuracy || 0,
-            totalTrades: countMap[p.user_id] || 0,
-            // Accuracy and rank are both based on settled bets, not on every
-            // bet placed, so the two counts have to be shown separately.
-            totalResolved: p.total_resolved || 0,
-            impactScore: p.impact_score || 0,
-            leaderboardRank: i + 1,
-            following: followingIds.has(p.user_id),
-            followsMe: followerIds.has(p.user_id),
-            cause: p.cause || "",
-            causePrivate: false,
-            avatar_url: p.avatar_url || null,
-            positions: followedPositionsMap[p.user_id] || [],
-          })),
+        ranked.map((p, i) => ({
+          id: p.user_id,
+          username: p.username,
+          name: p.username,
+          accuracy: p.accuracy || 0,
+          totalTrades: countMap[p.user_id] || 0,
+          // Accuracy and rank are both based on settled bets, not on every
+          // bet placed, so the two counts have to be shown separately.
+          totalResolved: p.total_resolved || 0,
+          impactScore: p.impact_score || 0,
+          leaderboardRank: i + 1,
+          following: followingIds.has(p.user_id),
+          followsMe: followerIds.has(p.user_id),
+          cause: p.cause || "",
+          causePrivate: false,
+          avatar_url: p.avatar_url || null,
+          positions: followedPositionsMap[p.user_id] || [],
+        })),
       );
     }
   };
