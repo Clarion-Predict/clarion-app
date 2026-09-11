@@ -466,7 +466,9 @@ const UserProfileView = ({
                       {p.side.toUpperCase()}
                     </span>
                     <span className="text-xs text-stone-500">
-                      ${p.amount} wagered
+                      {p.amount == null
+                        ? "Amount hidden"
+                        : `$${Number(p.amount).toFixed(2)} wagered`}
                     </span>
                   </div>
                 </div>
@@ -761,7 +763,11 @@ const ActivityFeed = ({
                 </p>
               )}
               <div className="flex items-center gap-3 text-xs text-stone-400 flex-wrap mb-3">
-                <span>${item.amount?.toFixed(2)} wagered</span>
+                <span>
+                  {item.amount == null
+                    ? "Amount hidden"
+                    : `$${Number(item.amount).toFixed(2)} wagered`}
+                </span>
                 {item.resolved && (
                   <span
                     className={`px-2 py-0.5 rounded-full font-medium ${item.voided ? "bg-stone-100 text-stone-400" : item.won ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-500"}`}
@@ -1106,7 +1112,15 @@ const MyProfileTab = ({
 }) => {
   const [selectedCause, setSelectedCause] = useState(userProfile?.cause || "");
   const [causePrivate, setCausePrivate] = useState(false);
-  const [amountsPrivate, setAmountsPrivate] = useState(false);
+  const [amountsPrivate, setAmountsPrivate] = useState(
+    userProfile?.amountsPrivate ?? false,
+  );
+  // useState only reads its initial value once. If the profile arrives after
+  // this mounts, a privacy toggle showing the wrong state would invite someone
+  // to "turn it on" and actually turn it off.
+  useEffect(() => {
+    setAmountsPrivate(userProfile?.amountsPrivate ?? false);
+  }, [userProfile?.amountsPrivate]);
   const [editingBio, setEditingBio] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [bio, setBio] = useState(userProfile?.bio || "");
@@ -1295,7 +1309,20 @@ const MyProfileTab = ({
               label: "Hide bet amounts",
               sub: "Others see your direction (YES/NO) but not how much you wagered",
               state: amountsPrivate,
-              toggle: () => setAmountsPrivate(!amountsPrivate),
+              toggle: () => {
+                const next = !amountsPrivate;
+                setAmountsPrivate(next);
+                setUserProfile((prev) => ({ ...prev, amountsPrivate: next }));
+                if (demoUser?.id) {
+                  supabase
+                    .from("profiles")
+                    .update({ amounts_private: next })
+                    .eq("user_id", demoUser.id)
+                    .then(({ error }) => {
+                      if (error) console.error("amounts_private:", error);
+                    });
+                }
+              },
             },
             ...(SHOW_PLEDGE
               ? [
@@ -1318,11 +1345,15 @@ const MyProfileTab = ({
               </div>
               <button
                 onClick={s.toggle}
-                className={`w-10 rounded-full transition-colors relative flex-shrink-0 ${s.state ? "bg-stone-900" : "bg-stone-200"}`}
-                style={{ height: "22px", width: "40px" }}
+                role="switch"
+                aria-checked={s.state}
+                aria-label={s.label}
+                className={`relative flex-shrink-0 h-[22px] w-10 rounded-full transition-colors ${s.state ? "bg-stone-900" : "bg-stone-200"}`}
               >
+                {/* 22px track, 16px knob -> 3px inset centres it, and the
+                    travel is 40 - 16 - (3 * 2) = 18px. */}
                 <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${s.state ? "translate-x-5" : "translate-x-0.5"}`}
+                  className={`absolute left-[3px] top-[3px] w-4 h-4 rounded-full bg-white transition-transform ${s.state ? "translate-x-[18px]" : "translate-x-0"}`}
                 />
               </button>
             </div>
@@ -2020,7 +2051,15 @@ export default function Cajuga() {
     accuracy: number;
     totalResolved: number;
     avatarUrl: string | null;
-  }>({ bio: "", cause: "", accuracy: 0, totalResolved: 0, avatarUrl: null });
+    amountsPrivate: boolean;
+  }>({
+    bio: "",
+    cause: "",
+    accuracy: 0,
+    totalResolved: 0,
+    avatarUrl: null,
+    amountsPrivate: false,
+  });
 
   const [markets, setMarkets] = useState(initialMarkets);
   const [waitlist, setWaitlist] = useState(initialWaitlist);
@@ -2193,6 +2232,7 @@ export default function Cajuga() {
               bio: profile.bio || "",
               cause: profile.cause || "",
               avatarUrl: profile.avatar_url || null,
+              amountsPrivate: profile.amounts_private ?? false,
               accuracy: profile.accuracy || 0,
               totalResolved: profile.total_resolved || 0,
             });
@@ -2349,6 +2389,7 @@ export default function Cajuga() {
             bio: profile.bio || "",
             cause: profile.cause || "",
             avatarUrl: profile.avatar_url || null,
+            amountsPrivate: profile.amounts_private ?? false,
             accuracy: profile.accuracy || 0,
             totalResolved: profile.total_resolved || 0,
           });
@@ -2413,13 +2454,11 @@ export default function Cajuga() {
         "user_id, username, bio, cause, accuracy, wins, total_resolved, impact_score, avatar_url",
       );
     if (profileRows && profileRows.length > 0) {
-      const { data: tradeCounts } = await supabase
-        .from("positions")
-        .select("user_id");
+      const { data: tradeCounts } = await supabase.rpc("trade_counts");
       const countMap = {};
       if (tradeCounts) {
-        tradeCounts.forEach((p) => {
-          countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
+        tradeCounts.forEach((row) => {
+          countMap[row.user_id] = Number(row.trades) || 0;
         });
       }
       // Load follows for current user
@@ -2449,11 +2488,10 @@ export default function Cajuga() {
       // Load positions for followed users
       let followedPositionsMap = {};
       if (followingIds.size > 0) {
-        const { data: followedPositions, error: posError } = await supabase
-          .from("positions")
-          .select("*")
-          .in("user_id", Array.from(followingIds))
-          .order("created_at", { ascending: false });
+        const { data: followedPositions, error: posError } = await supabase.rpc(
+          "feed_positions",
+          { p_user_ids: Array.from(followingIds) },
+        );
         console.log(
           "followedPositions:",
           followedPositions,
@@ -3221,32 +3259,56 @@ export default function Cajuga() {
                             className={`px-4 py-3 border-b border-stone-50 last:border-0 ${!n.read ? "bg-amber-50/50" : ""}`}
                           >
                             <div className="flex items-start gap-2">
-                              <button
-                                onClick={() => {
-                                  const actor = communityUsers.find(
-                                    (u) => u.username === n.actor_username,
-                                  );
-                                  if (actor) setViewingProfile(actor);
-                                  setShowNotifications(false);
-                                }}
-                                className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center text-xs font-medium text-stone-800 flex-shrink-0 hover:opacity-80"
-                              >
-                                {n.actor_username?.[0]?.toUpperCase()}
-                              </button>
+                              {/* A win has no actor — the market resolved —
+                                  so it gets a trophy instead of an avatar. */}
+                              {n.type === "win" ? (
+                                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                  <Trophy className="w-3.5 h-3.5 text-emerald-700" />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    const actor = communityUsers.find(
+                                      (u) => u.username === n.actor_username,
+                                    );
+                                    if (actor) setViewingProfile(actor);
+                                    setShowNotifications(false);
+                                  }}
+                                  className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-200 to-rose-200 flex items-center justify-center text-xs font-medium text-stone-800 flex-shrink-0 hover:opacity-80"
+                                >
+                                  {n.actor_username?.[0]?.toUpperCase()}
+                                </button>
+                              )}
                               <button
                                 className="flex-1 min-w-0 text-left"
                                 onClick={() => {
                                   setShowNotifications(false);
-                                  navigateTo("gossip");
+                                  navigateTo(
+                                    n.type === "win" ? "positions" : "gossip",
+                                  );
                                 }}
                               >
                                 <p className="text-xs text-stone-700 leading-snug">
-                                  <span className="font-medium">
-                                    @{n.actor_username}
-                                  </span>
-                                  {n.type === "comment"
-                                    ? " commented on your trade"
-                                    : ` reacted ${n.emoji} to your trade`}
+                                  {n.type === "win" ? (
+                                    <>
+                                      <span className="font-medium text-emerald-700">
+                                        You won
+                                        {n.amount != null
+                                          ? ` $${Number(n.amount).toFixed(2)}`
+                                          : ""}
+                                      </span>{" "}
+                                      on this market
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="font-medium">
+                                        @{n.actor_username}
+                                      </span>
+                                      {n.type === "comment"
+                                        ? " commented on your trade"
+                                        : ` reacted ${n.emoji} to your trade`}
+                                    </>
+                                  )}
                                 </p>
                                 <p className="text-xs text-stone-400 mt-0.5 truncate">
                                   {n.market}
