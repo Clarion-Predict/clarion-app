@@ -7,6 +7,7 @@ import StarButton from "./StarButton";
 import FeedbackModal from "./FeedbackModal";
 import SuggestMarketModal from "./SuggestMarketModal";
 import AvatarUpload from "./AvatarUpload";
+import HowItWorks from "./HowItWorks";
 import {
   MIN_PASSWORD_LENGTH,
   checkPassword,
@@ -1582,6 +1583,21 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
   const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Set once the account exists but the address is unconfirmed, which is the
+  // only way in now -- accounts are created unconfirmed on purpose.
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [resent, setResent] = useState(false);
+
+  const resendConfirmation = async () => {
+    setError("");
+    const { error: sendError } = await supabase.auth.resend({
+      type: "signup",
+      email: verifyEmail,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (sendError) setError(sendError.message);
+    else setResent(true);
+  };
 
   const handleSubmit = async () => {
     setError("");
@@ -1628,6 +1644,10 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
     setLoading(false);
     // onAuth returns an error string when signup/sign-in is rejected so the
     // message lands in the form instead of an alert().
+    if (result?.verifyEmail) {
+      setVerifyEmail(result.verifyEmail);
+      return;
+    }
     if (result?.error) setError(result.error);
   };
 
@@ -1662,6 +1682,45 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
           <X className="w-5 h-5" />
         </button>
         {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
+
+        {verifyEmail ? (
+          <div className="text-center py-6">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-5">
+              <Mail className="w-7 h-7 text-amber-800" />
+            </div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-2">
+              Confirm your email
+            </h2>
+            <p className="text-sm text-stone-500 mb-1">
+              We sent a link to{" "}
+              <span className="font-medium text-stone-700">{verifyEmail}</span>.
+            </p>
+            <p className="text-sm text-stone-500 mb-6">
+              Click it to finish setting up your account. You'll need to confirm
+              before you can sign in.
+            </p>
+            {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
+            {resent ? (
+              <p className="text-xs text-emerald-700 mb-4">
+                Sent again — check your inbox and spam folder.
+              </p>
+            ) : (
+              <button
+                onClick={resendConfirmation}
+                className="text-sm text-stone-600 underline hover:text-stone-900 mb-4"
+              >
+                Didn't get it? Send again
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+        <>
         <div className="flex items-center gap-2 mb-6">
           <Logo size={28} />
           <span className="brand-font text-stone-900">Cajuga</span>
@@ -1822,6 +1881,8 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
             {view === "login" ? "Join" : "Sign in"}
           </button>
         </p>
+        </>
+        )}
       </div>
     </div>
   );
@@ -2397,30 +2458,33 @@ export default function Cajuga() {
             "Could not create your account. Check your invite code and try again.",
         };
       }
-      // The function created the account but not a session — sign in for one.
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // The account exists but is unconfirmed, so there is deliberately no
+      // sign-in here -- it would fail. createUser does not send the
+      // confirmation itself, so ask Supabase to send it now.
+      const { error: sendError } = await supabase.auth.resend({
+        type: "signup",
         email: userData.email,
-        password: userData.password,
+        options: { emailRedirectTo: window.location.origin },
       });
-      if (error || !data.user) {
+      if (sendError) {
+        console.error("confirmation email:", sendError);
         return {
-          error: "Account created. Please sign in with your new password.",
+          error:
+            "Your account was created, but we could not send the confirmation email. Use “Forgot password” to get a link, or contact us.",
         };
       }
-      setAuthUser({
-        id: data.user.id,
-        email: userData.email,
-        username: userData.username,
-      });
-      setBalance(signupData.granted ?? 200);
-      setAuthScreen(null);
-      setOnboarding(true);
+      return { verifyEmail: userData.email };
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: userData.email,
         password: userData.password,
       });
       if (error) {
+        // Supabase reports this as "Email not confirmed", which reads like a
+        // failure rather than a next step.
+        if (/not confirmed/i.test(error.message)) {
+          return { verifyEmail: userData.email, unconfirmed: true };
+        }
         return { error: error.message };
       }
       if (data.user) {
@@ -3854,6 +3918,12 @@ export default function Cajuga() {
               only and do not indicate an endorsement of this product or any
               affiliation between these networks and platforms and Cajuga.
             </p>
+            <div className="mt-8 pt-6 border-t border-stone-200">
+              <h2 className="text-lg font-serif text-stone-900 mb-5">
+                How it works
+              </h2>
+              <HowItWorks tone="light" />
+            </div>
             <div className="mt-8 pt-5 border-t border-stone-200">
               <button
                 onClick={() => setShowTerms(true)}

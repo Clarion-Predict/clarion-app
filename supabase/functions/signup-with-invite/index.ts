@@ -7,6 +7,9 @@
 // Turn OFF public signup in the Supabase dashboard (Authentication -> Sign In /
 // Providers -> disable "Allow new users to sign up"). Without that, anyone can
 // still call auth.signUp directly and bypass this entirely.
+//
+// Requires "Confirm email" ON and custom SMTP configured, or accounts will be
+// created that nobody can sign in to.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -222,13 +225,15 @@ Deno.serve(async (req) => {
     claimedCode = bumped.code;
     const grantAmount = Number(bumped.grant_amount ?? 200);
 
-    // Create the account. email_confirm skips the verification email, which is
-    // what you want for a hand-invited friends-and-family cohort.
+    // Created unconfirmed: with "Confirm email" enabled in the dashboard, the
+    // member cannot sign in until they click the link. createUser never sends
+    // that email itself, so the browser calls auth.resend() straight after
+    // this returns.
     const { data: created, error: createError } =
       await admin.auth.admin.createUser({
         email,
         password,
-        email_confirm: true,
+        email_confirm: false,
         user_metadata: { username },
       });
 
@@ -283,7 +288,7 @@ Deno.serve(async (req) => {
       description: `Welcome credits (invite ${claimedCode})`,
     });
 
-    return json({ ok: true, granted: grantAmount });
+    return json({ ok: true, granted: grantAmount, needsVerification: true });
   } catch (err) {
     // Release the code so a failed signup doesn't burn an invite.
     if (claimedCode) {
