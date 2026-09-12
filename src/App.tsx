@@ -16,6 +16,7 @@ import {
 import {
   Avatar,
   Logo,
+  readFunctionError,
   autoCheckSubmission,
   communityImpact,
   formatVolume,
@@ -1720,168 +1721,170 @@ const AuthModal = ({ mode, onClose, onAuth }) => {
             </button>
           </div>
         ) : (
-        <>
-        <div className="flex items-center gap-2 mb-6">
-          <Logo size={28} />
-          <span className="brand-font text-stone-900">Cajuga</span>
-        </div>
-        <h2 className="text-2xl font-serif text-stone-900 mb-1">
-          {view === "login" ? "Welcome back" : "Join the founding cohort"}
-        </h2>
-        <p className="text-sm text-stone-500 mb-6">
-          {view === "login"
-            ? "Sign in to your account"
-            : "Practice mode · No real money"}
-        </p>
-
-        {view === "signup" && (
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-stone-600 mb-1.5">
-              Invite code
-            </label>
-            <input
-              type="text"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="CAJUGA-XXXX"
-              className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900 tracking-wide"
-            />
-            <p className="text-xs text-stone-400 mt-1">
-              Cajuga is invite-only during the private beta.
+          <>
+            <div className="flex items-center gap-2 mb-6">
+              <Logo size={28} />
+              <span className="brand-font text-stone-900">Cajuga</span>
+            </div>
+            <h2 className="text-2xl font-serif text-stone-900 mb-1">
+              {view === "login" ? "Welcome back" : "Join the founding cohort"}
+            </h2>
+            <p className="text-sm text-stone-500 mb-6">
+              {view === "login"
+                ? "Sign in to your account"
+                : "Practice mode · No real money"}
             </p>
-          </div>
-        )}
 
-        {view === "signup" && (
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-stone-600 mb-1.5">
-              Username
-            </label>
-            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 focus-within:border-stone-400">
-              <AtSign className="w-4 h-4 text-stone-400 flex-shrink-0" />
+            {view === "signup" && (
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  Invite code
+                </label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="CAJUGA-XXXX"
+                  className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900 tracking-wide"
+                />
+                <p className="text-xs text-stone-400 mt-1">
+                  Cajuga is invite-only during the private beta.
+                </p>
+              </div>
+            )}
+
+            {view === "signup" && (
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                  Username
+                </label>
+                <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 focus-within:border-stone-400">
+                  <AtSign className="w-4 h-4 text-stone-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) =>
+                      setUsername(
+                        e.target.value.toLowerCase().replace(/\s/g, ""),
+                      )
+                    }
+                    placeholder="yourname"
+                    className="bg-transparent text-sm focus:outline-none flex-1 text-stone-900"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                Email
+              </label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
-                }
-                placeholder="yourname"
-                className="bg-transparent text-sm focus:outline-none flex-1 text-stone-900"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
               />
             </div>
-          </div>
-        )}
 
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-stone-600 mb-1.5">
-            Email
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
-          />
-        </div>
-
-        <div className="mb-2">
-          <label className="block text-xs font-medium text-stone-600 mb-1.5">
-            Password
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="••••••••"
-            className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
-          />
-          {view === "signup" && (
-            <div className="flex items-center gap-2 mt-1.5">
-              <div className="flex gap-1 flex-1">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={`h-1 flex-1 rounded-full ${
-                      passwordStrength(password).score > i
-                        ? "bg-emerald-500"
-                        : "bg-stone-200"
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-xs text-stone-400 w-16 text-right">
-                {password ? passwordStrength(password).label : ""}
-              </span>
+            <div className="mb-2">
+              <label className="block text-xs font-medium text-stone-600 mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-2xl bg-stone-50 border border-stone-200 text-sm focus:outline-none focus:border-stone-400 text-stone-900"
+              />
+              {view === "signup" && (
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex gap-1 flex-1">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full ${
+                          passwordStrength(password).score > i
+                            ? "bg-emerald-500"
+                            : "bg-stone-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-stone-400 w-16 text-right">
+                    {password ? passwordStrength(password).label : ""}
+                  </span>
+                </div>
+              )}
+              {view === "signup" && !password && (
+                <p className="text-xs text-stone-400 mt-1">
+                  At least {MIN_PASSWORD_LENGTH} characters. A few words
+                  together beats a short complicated one.
+                </p>
+              )}
             </div>
-          )}
-          {view === "signup" && !password && (
-            <p className="text-xs text-stone-400 mt-1">
-              At least {MIN_PASSWORD_LENGTH} characters. A few words together
-              beats a short complicated one.
+
+            {view === "login" && (
+              <div className="text-right mb-2">
+                <button
+                  onClick={handleForgot}
+                  className="text-xs text-stone-500 underline hover:text-stone-700"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
+            {view === "signup" && (
+              <p className="text-xs text-stone-500 leading-relaxed mb-3">
+                By creating an account you agree to Cajuga's{" "}
+                <button
+                  onClick={() => setShowTerms(true)}
+                  className="text-stone-900 font-medium underline"
+                >
+                  Terms of Use and User Agreement
+                </button>
+                .
+              </p>
+            )}
+
+            {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
+            {resetSent && (
+              <p className="text-xs text-emerald-700 mb-3">
+                Reset link sent — check your email.
+              </p>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium mt-4 disabled:opacity-60"
+            >
+              {loading
+                ? "Just a moment…"
+                : view === "login"
+                  ? "Sign in"
+                  : "Create account"}
+            </button>
+
+            <p className="text-center text-xs text-stone-500 mt-4">
+              {view === "login"
+                ? "Don't have an account? "
+                : "Already have an account? "}
+              <button
+                onClick={() => {
+                  setView(view === "login" ? "signup" : "login");
+                  setError("");
+                }}
+                className="text-stone-900 font-medium underline"
+              >
+                {view === "login" ? "Join" : "Sign in"}
+              </button>
             </p>
-          )}
-        </div>
-
-        {view === "login" && (
-          <div className="text-right mb-2">
-            <button
-              onClick={handleForgot}
-              className="text-xs text-stone-500 underline hover:text-stone-700"
-            >
-              Forgot password?
-            </button>
-          </div>
-        )}
-
-        {view === "signup" && (
-          <p className="text-xs text-stone-500 leading-relaxed mb-3">
-            By creating an account you agree to Cajuga's{" "}
-            <button
-              onClick={() => setShowTerms(true)}
-              className="text-stone-900 font-medium underline"
-            >
-              Terms of Use and User Agreement
-            </button>
-            .
-          </p>
-        )}
-
-        {error && <p className="text-xs text-rose-600 mb-3">{error}</p>}
-        {resetSent && (
-          <p className="text-xs text-emerald-700 mb-3">
-            Reset link sent — check your email.
-          </p>
-        )}
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full py-3.5 rounded-2xl bg-stone-900 text-white text-sm font-medium mt-4 disabled:opacity-60"
-        >
-          {loading
-            ? "Just a moment…"
-            : view === "login"
-              ? "Sign in"
-              : "Create account"}
-        </button>
-
-        <p className="text-center text-xs text-stone-500 mt-4">
-          {view === "login"
-            ? "Don't have an account? "
-            : "Already have an account? "}
-          <button
-            onClick={() => {
-              setView(view === "login" ? "signup" : "login");
-              setError("");
-            }}
-            className="text-stone-900 font-medium underline"
-          >
-            {view === "login" ? "Join" : "Sign in"}
-          </button>
-        </p>
-        </>
+          </>
         )}
       </div>
     </div>
@@ -2451,11 +2454,16 @@ export default function Cajuga() {
             code: userData.inviteCode,
           },
         });
-      if (signupError || !signupData || signupData.error) {
+      // supabase-js reports a non-2xx from an edge function as an error with
+      // `data` null, so the function's own message lives on error.context --
+      // without reading it, every rejection (username taken, weak password,
+      // email already registered) collapses into one misleading sentence.
+      const serverError =
+        signupData?.error ?? (await readFunctionError(signupError));
+      if (serverError || signupError || !signupData) {
         return {
           error:
-            signupData?.error ||
-            "Could not create your account. Check your invite code and try again.",
+            serverError || "Could not create your account. Please try again.",
         };
       }
       // The account exists but is unconfirmed, so there is deliberately no
@@ -3025,9 +3033,7 @@ export default function Cajuga() {
                         the balance. The gain is net of the fee so it reconciles
                         with the Total cost line below -- payout minus stake
                         alone would be 30c adrift of it. */}
-                    <span className="text-stone-900">
-                      ${shares.toFixed(2)}
-                    </span>{" "}
+                    <span className="text-stone-900">${shares.toFixed(2)}</span>{" "}
                     <span
                       className={
                         shares - totalCost >= 0
@@ -3637,11 +3643,11 @@ export default function Cajuga() {
           <div>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h1 className="text-xl md:text-2xl font-serif text-stone-900">
+                <h1 className="text-xl md:text-3xl brand-font text-stone-900">
                   Gossip
                 </h1>
                 <p className="text-sm text-stone-500">
-                  People you follow · 280 char comments
+                  The Tea from people you follow · 280 char comments
                 </p>
               </div>
               <button
@@ -3665,7 +3671,7 @@ export default function Cajuga() {
         {activeTab === "leaderboard" && (
           <div>
             <div className="mb-5">
-              <h1 className="text-xl md:text-2xl font-serif text-stone-900">
+              <h1 className="text-xl md:text-2xl brand-font text-stone-900">
                 Leaderboard
               </h1>
               <p className="text-sm text-stone-500">
@@ -3683,8 +3689,8 @@ export default function Cajuga() {
 
         {activeTab === "positions" && (
           <div>
-            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-1">
-              Your positions
+            <h1 className="text-xl md:text-2xl brand-font text-stone-900 mb-1">
+              Your Positions
             </h1>
             <p className="text-sm text-stone-500 mb-4">
               {positions.filter((p) => !p.resolved).length} open ·{" "}
@@ -3744,7 +3750,7 @@ export default function Cajuga() {
 
         {activeTab === "profile" && (
           <div>
-            <h1 className="text-xl md:text-2xl font-serif text-stone-900 mb-5">
+            <h1 className="text-xl md:text-2xl brand-font text-stone-900 mb-5">
               My profile
             </h1>
             <MyProfileTab
@@ -3834,15 +3840,16 @@ export default function Cajuga() {
         )}
 
         {activeTab === "about" && (
-          <div className="max-w-2xl">
+          <div className="max-w-3xl">
             <div className="mb-6 p-8 rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50/60 to-rose-50 border border-amber-200">
-              <h1 className="text-3xl md:text-4xl font-serif text-stone-900 leading-tight mb-3">
-                The prediction market for reality TV.
+              <h1 className="text-3xl md:text-4xl brand-font text-stone-900 leading-tight mb-3">
+                The prediction market for Reality TV.
               </h1>
               <p className="text-base text-stone-700 leading-relaxed">
-                Curated markets across Bachelor Nation, Bravo, Survivor,
-                Netflix, and more. You already know who's going home — now back
-                it. 1 percent of annual revenue goes to causes that matter.
+                Curated markets across Bachelor Nation, Bravo Universe,
+                Survivor, Netflix, and more. You already know who's going home:
+                now back it up with something real. 1 percent of annual revenue
+                goes to causes that matter.
               </p>
             </div>
             <h2 className="text-lg font-serif text-stone-900 mb-3">

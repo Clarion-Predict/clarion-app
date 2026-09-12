@@ -21,6 +21,7 @@ import {
 import {
   Logo,
   communityImpact,
+  readFunctionError,
   formatVolume,
   mapSubmissionRow,
   marketVolume,
@@ -416,9 +417,10 @@ const AdminPanel = ({
     setGenerating(false);
     if (error || !data || data.error) {
       console.error("Generation failed:", error || data?.error);
+      const serverError = data?.error ?? (await readFunctionError(error));
       setGenStatus({
         error:
-          data?.error ||
+          serverError ||
           "Generation failed — check the generate-markets function logs.",
       });
       return;

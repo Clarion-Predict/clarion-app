@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "./supabase";
+import { readFunctionError } from "./shared";
 import { X, CreditCard, Zap } from "lucide-react";
 
 // Display copy only — real prices live server-side in the
@@ -44,8 +45,11 @@ const BuyCreditsModal = ({ onClose }) => {
     );
     if (invokeError || !data?.url) {
       setLoading(false);
-      // Prefer the server's message — it knows the real limits.
-      setError(data?.error || "Couldn't start checkout. Please try again.");
+      // Prefer the server's message — it knows the real limits. On a non-2xx
+      // it lives on the error, not in data.
+      const serverError =
+        data?.error ?? (await readFunctionError(invokeError));
+      setError(serverError || "Couldn't start checkout. Please try again.");
       return;
     }
     window.location.href = data.url; // off to Stripe's hosted payment page

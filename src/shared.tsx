@@ -193,7 +193,23 @@ const Avatar = ({
   );
 };
 
+// Pulls the JSON body out of a failed functions.invoke call. supabase-js wraps
+// a non-2xx response in a FunctionsHttpError and leaves `data` null, so the
+// message the function actually returned is only reachable through context.
+// Without this, every server-side rejection collapses into a generic string.
+const readFunctionError = async (err: any): Promise<string | null> => {
+  if (!err) return null;
+  try {
+    const body = await err.context?.json?.();
+    if (body?.error) return String(body.error);
+  } catch {
+    // Body already consumed or not JSON -- fall back to the generic message.
+  }
+  return null;
+};
+
 export {
+  readFunctionError,
   Avatar,
   FILTER_KEYWORDS,
   autoCheckSubmission,
